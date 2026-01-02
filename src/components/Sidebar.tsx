@@ -31,15 +31,15 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
   ];
 
   return (
-    <div className="w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-colors duration-200 h-screen overflow-hidden">
+    <aside className="w-64 bg-card border-r border-border flex flex-col h-screen sticky top-0 shrink-0">
       {/* Logo */}
-      <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
-        <h1 className="text-xl font-bold text-black dark:text-white">Monotask</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Minimal productivity</p>
+      <div className="p-6 border-b border-border shrink-0">
+        <h1 className="text-xl font-bold text-foreground">Monotask</h1>
+        <p className="text-sm text-muted-foreground">Minimal productivity</p>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 overflow-y-auto">
+      <nav className="flex-1 p-4 overflow-y-auto min-h-0">
         <ul className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -51,15 +51,15 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
                   onClick={() => onViewChange(item.id)}
                   className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
                     isActive
-                      ? 'bg-black dark:bg-white text-white dark:text-black shadow-sm'
-                      : 'text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+                      ? 'bg-foreground text-background shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                   }`}
                 >
                   <Icon className={`mr-3 h-5 w-5 transition-colors ${
-                    isActive ? 'text-white dark:text-black' : 'text-gray-400 dark:text-gray-500'
+                    isActive ? 'text-background' : 'text-muted-foreground'
                   }`} />
                   <span className="font-medium">{item.label}</span>
-                  {isActive && <div className="ml-auto w-1 h-1 bg-white dark:bg-black rounded-full" />}
+                  {isActive && <div className="ml-auto w-1 h-1 bg-background rounded-full" />}
                 </button>
               </li>
             );
@@ -68,16 +68,16 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
       </nav>
 
       {/* User Section */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-800 flex-shrink-0">
+      <div className="p-4 border-t border-border shrink-0 mt-auto">
         <button
           onClick={signOut}
-          className="w-full flex items-center px-3 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
+          className="w-full flex items-center px-3 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-all duration-200"
         >
-          <LogOut className="mr-3 h-5 w-5 text-gray-400 dark:text-gray-500" />
+          <LogOut className="mr-3 h-5 w-5 text-muted-foreground" />
           Sign Out
         </button>
       </div>
-    </div>
+    </aside>
   );
 };
 

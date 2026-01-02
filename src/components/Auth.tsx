@@ -1,14 +1,20 @@
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { UserRound } from 'lucide-react';
+import { UserRound, ArrowLeft } from 'lucide-react';
 
-const Auth = () => {
-  const [isSignUp, setIsSignUp] = useState(false);
+interface AuthProps {
+  defaultMode?: 'signin' | 'signup';
+}
+
+const Auth: React.FC<AuthProps> = ({ defaultMode = 'signin' }) => {
+  const navigate = useNavigate();
+  const [isSignUp, setIsSignUp] = useState(defaultMode === 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,10 +43,16 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md border-border relative">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-black">Monotask</CardTitle>
+          <button 
+            onClick={() => navigate('/')}
+            className="absolute top-4 left-4 p-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <CardTitle className="text-2xl font-bold text-foreground">Monotask</CardTitle>
           <CardDescription>
             {isSignUp ? 'Create your account' : 'Sign in to your account'}
           </CardDescription>

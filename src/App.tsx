@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { SettingsProvider } from "@/hooks/useSettings";
+import Landing from "./pages/Landing";
+import AuthPage from "./pages/Auth";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 
@@ -19,7 +21,9 @@ function App() {
             <Toaster />
             <BrowserRouter>
               <Routes>
-                <Route path="/" element={<Index />} />
+                <Route path="/" element={<Landing />} />
+                <Route path="/auth" element={<AuthPage />} />
+                <Route path="/app" element={<Index />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

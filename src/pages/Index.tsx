@@ -1,8 +1,8 @@
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
-import Auth from "@/components/Auth";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import Dashboard from "@/components/Dashboard";
@@ -14,6 +14,7 @@ import ProgressView from "@/components/ProgressView";
 import Settings from "@/components/Settings";
 
 const Index = () => {
+  const navigate = useNavigate();
   const { user, loading } = useAuth();
   const { settings } = useSettings();
   const [currentView, setCurrentView] = useState('dashboard');
@@ -43,8 +44,14 @@ const Index = () => {
     );
   }
 
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/');
+    }
+  }, [user, loading, navigate]);
+
   if (!user) {
-    return <Auth />;
+    return null;
   }
 
   const renderCurrentView = () => {
@@ -69,7 +76,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex transition-colors duration-200 w-full">
+    <div className="min-h-screen bg-background flex w-full">
       <Sidebar currentView={currentView} onViewChange={setCurrentView} />
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar onQuickAdd={handleQuickAdd} currentView={currentView} />
