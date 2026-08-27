@@ -32,3 +32,6 @@ graphify-out/
 PROJECT_ANALYSIS.md
 .vercel
 .env*
+
+# Demo account credentials - real passwords, never commit
+DEMO_CREDENTIALS.md
