@@ -26,3 +26,9 @@ dist-ssr
 
 # Supabase CLI local cache
 supabase/.temp/
+
+# graphify local artifacts
+graphify-out/
+PROJECT_ANALYSIS.md
+.vercel
+.env*
