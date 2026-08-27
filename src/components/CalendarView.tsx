@@ -43,10 +43,10 @@ const CalendarView: React.FC = () => {
     return tasks.filter(task => task.due_date === dateString);
   };
 
-  const handleDayClick = (day: number) => {
-    const clickedDate = formatDateForComparison(currentDate.getFullYear(), currentDate.getMonth(), day);
+  const handleDayClick = (date: Date) => {
+    const clickedDate = formatDateForComparison(date.getFullYear(), date.getMonth(), date.getDate());
     const dayTasks = getTasksForDate(clickedDate);
-    
+
     if (dayTasks.length > 0) {
       setSelectedDate(clickedDate);
       setIsDayTasksModalOpen(true);
@@ -84,10 +84,12 @@ const CalendarView: React.FC = () => {
                      today.getFullYear() === currentDay.getFullYear();
       
       days.push(
-        <div 
-          key={i} 
-          className="border-r last:border-r-0 border-gray-200 dark:border-gray-700 p-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer min-h-[400px]"
-          onClick={() => handleDayClick(currentDay.getDate())}
+        <button
+          key={i}
+          type="button"
+          aria-label={`${dayNames[i]}, ${currentDay.toLocaleDateString()}${dayTasks.length > 0 ? `, ${dayTasks.length} task${dayTasks.length > 1 ? 's' : ''}` : ', no tasks'}`}
+          className="block w-full text-left border-r last:border-r-0 border-gray-200 dark:border-gray-700 p-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer min-h-[400px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-black dark:focus-visible:outline-white"
+          onClick={() => handleDayClick(currentDay)}
         >
           <div className="text-center mb-3">
             <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -115,10 +117,10 @@ const CalendarView: React.FC = () => {
               </div>
             ))}
           </div>
-        </div>
+        </button>
       );
     }
-    
+
     return days;
   };
 
@@ -138,10 +140,12 @@ const CalendarView: React.FC = () => {
       const dayTasks = getTasksForDate(dateString);
       
       days.push(
-        <div 
-          key={day} 
-          className="h-32 border border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group transition-colors"
-          onClick={() => handleDayClick(day)}
+        <button
+          key={day}
+          type="button"
+          aria-label={`${monthNames[currentDate.getMonth()]} ${day}, ${currentDate.getFullYear()}${dayTasks.length > 0 ? `, ${dayTasks.length} task${dayTasks.length > 1 ? 's' : ''}` : ', no tasks'}`}
+          className="block w-full text-left h-32 border border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-black dark:focus-visible:outline-white"
+          onClick={() => handleDayClick(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))}
         >
           <div className="flex justify-between items-start mb-1">
             <div className={`text-sm font-medium ${isToday ? 'text-white bg-black dark:bg-white dark:text-black rounded-full w-6 h-6 flex items-center justify-center' : 'text-black dark:text-white'}`}>
@@ -171,10 +175,10 @@ const CalendarView: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
+        </button>
       );
     }
-    
+
     return days;
   };
 

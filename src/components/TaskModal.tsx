@@ -9,11 +9,22 @@ import { useTasks, Task } from '@/hooks/useTasks';
 import TagSelector from './TagSelector';
 import TimeInput from './TimeInput';
 
+interface TaskDraft {
+  title: string;
+  description?: string;
+  due_date?: string | null;
+  due_time?: string | null;
+  priority?: 'low' | 'medium' | 'high';
+  tag_id?: string | null;
+  repeat_type?: 'none' | 'daily' | 'weekly' | 'monthly';
+}
+
 interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   task?: Task | null;
   prefilledDate?: string;
+  draft?: TaskDraft | null;
 }
 
 const formatDateForInput = (dateString?: string) => {
@@ -30,7 +41,7 @@ const formatDateForInput = (dateString?: string) => {
   return `${year}-${month}-${day}`;
 };
 
-const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledDate }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledDate, draft }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -56,6 +67,17 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
         repeat_type: task.repeat_type || 'none',
         repeat_interval: task.repeat_interval || 1,
       });
+    } else if (draft) {
+      setFormData({
+        title: draft.title,
+        description: draft.description || '',
+        due_date: formatDateForInput(draft.due_date || undefined),
+        due_time: draft.due_time || '',
+        priority: draft.priority || 'low',
+        tag_id: draft.tag_id || '',
+        repeat_type: draft.repeat_type || 'none',
+        repeat_interval: 1,
+      });
     } else if (prefilledDate) {
       setFormData(prev => ({ 
         ...prev, 
@@ -80,7 +102,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
         repeat_interval: 1,
       });
     }
-  }, [task, prefilledDate, isOpen]);
+  }, [task, prefilledDate, draft, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

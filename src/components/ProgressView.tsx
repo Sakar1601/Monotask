@@ -1,18 +1,23 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import { Download, Sparkles } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
+import { useWeeklySummary } from '@/hooks/useWeeklySummary';
+import { exportToPDF } from '@/utils/pdfExport';
+import { toCsvRow } from '@/utils/csv';
 
 const ProgressView: React.FC = () => {
   const { user } = useAuth();
   const { tasks } = useTasks();
-  const { habits } = useHabits();
+  const { habits, logs } = useHabits();
+  const [summaryRequested, setSummaryRequested] = useState(false);
+  const { data: weeklySummary, isLoading: isSummaryLoading, error: summaryError } = useWeeklySummary(summaryRequested);
 
   // Weekly task completion data
   const { data: weeklyData = [] } = useQuery({
@@ -73,7 +78,7 @@ const ProgressView: React.FC = () => {
 
       const tagCounts: Record<string, { name: string; color: string; count: number }> = {};
       
-      tasksByTag?.forEach((task: any) => {
+      tasksByTag?.forEach((task: { tags: { name: string; color: string } | null }) => {
         const tagName = task.tags?.name || 'No Tag';
         const tagColor = task.tags?.color || '#9ca3af';
         
@@ -179,8 +184,8 @@ const ProgressView: React.FC = () => {
       ])
     ];
 
-    const csvContent = csvData.map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const csvContent = csvData.map(row => toCsvRow(row)).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -190,29 +195,11 @@ const ProgressView: React.FC = () => {
   };
 
   const handleExportPDF = async () => {
-    // For now, create a simple text-based PDF export
-    const summaryText = `
-MONOTASK SUMMARY REPORT
-Generated: ${new Date().toLocaleDateString()}
-
-METRICS:
-- Tasks Completed This Week: ${completedThisWeek}/${totalThisWeek}
-- Average Daily Tasks: ${averageDaily}
-- Total Active Habits: ${habits.filter(h => h.is_active).length}
-
-COMPLETED TASKS:
-${tasks.filter(t => t.status === 'completed').slice(0, 20).map(task => 
-  `- ${task.title} (${task.due_date || 'No date'}) [${task.tags?.name || 'No tag'}]`
-).join('\n')}
-    `;
-
-    const blob = new Blob([summaryText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `monotask-summary-${new Date().toISOString().split('T')[0]}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
+    try {
+      await exportToPDF(tasks, habits, logs);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+    }
   };
 
   const kpis = [
@@ -250,6 +237,39 @@ ${tasks.filter(t => t.status === 'completed').slice(0, 20).map(task =>
             <Download className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
+        </div>
+      </div>
+
+      {/* AI Weekly Summary */}
+      <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <Sparkles className="w-5 h-5 mt-0.5 text-gray-500 dark:text-gray-400 shrink-0" />
+            <div>
+              <h3 className="font-medium text-black dark:text-white">AI Weekly Summary</h3>
+              {!summaryRequested && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Get a short AI-generated recap of your last 7 days.</p>
+              )}
+              {summaryRequested && isSummaryLoading && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Generating summary...</p>
+              )}
+              {summaryRequested && summaryError && (
+                <p className="text-sm text-red-600 dark:text-red-400">{(summaryError as Error).message}</p>
+              )}
+              {summaryRequested && weeklySummary && (
+                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{weeklySummary.summary}</p>
+              )}
+            </div>
+          </div>
+          {!summaryRequested && (
+            <Button
+              onClick={() => setSummaryRequested(true)}
+              variant="outline"
+              className="shrink-0 border-gray-300 dark:border-gray-700 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              Generate
+            </Button>
+          )}
         </div>
       </div>
 

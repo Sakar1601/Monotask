@@ -18,6 +18,7 @@ const Index = () => {
   const { user, loading } = useAuth();
   const { settings } = useSettings();
   const [currentView, setCurrentView] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Apply theme on component mount and when settings change
   useEffect(() => {
@@ -27,6 +28,12 @@ const Index = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [settings?.theme]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/');
+    }
+  }, [user, loading, navigate]);
 
   const handleQuickAdd = () => {
     // Quick add functionality - could open a task modal or navigate to tasks
@@ -43,12 +50,6 @@ const Index = () => {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/');
-    }
-  }, [user, loading, navigate]);
 
   if (!user) {
     return null;
@@ -77,9 +78,18 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background flex w-full">
-      <Sidebar currentView={currentView} onViewChange={setCurrentView} />
+      <Sidebar
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
       <div className="flex-1 flex flex-col min-w-0">
-        <TopBar onQuickAdd={handleQuickAdd} currentView={currentView} />
+        <TopBar
+          onQuickAdd={handleQuickAdd}
+          currentView={currentView}
+          onMenuClick={() => setIsSidebarOpen(true)}
+        />
         <main className="flex-1 overflow-auto">
           <div className="h-full">
             {renderCurrentView()}

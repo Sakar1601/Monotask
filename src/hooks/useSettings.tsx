@@ -1,5 +1,5 @@
 
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -14,7 +14,7 @@ interface UserSettings {
 
 interface SettingsContextType {
   settings: UserSettings;
-  updateSetting: (key: keyof UserSettings, value: any) => Promise<void>;
+  updateSetting: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => Promise<void>;
   isLoading: boolean;
   formatTime: (time: string) => string;
 }
@@ -43,20 +43,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load settings from Supabase
-  useEffect(() => {
-    if (user) {
-      loadSettings();
-    }
-  }, [user]);
-
-  // Apply theme changes to document root
-  useEffect(() => {
-    applyTheme(settings.theme);
-    applyFont(settings.font);
-  }, [settings.theme, settings.font]);
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       const { data } = await supabase
         .from('profiles')
@@ -72,9 +59,22 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
-  const updateSetting = async (key: keyof UserSettings, value: any) => {
+  // Load settings from Supabase
+  useEffect(() => {
+    if (user) {
+      loadSettings();
+    }
+  }, [user, loadSettings]);
+
+  // Apply theme changes to document root
+  useEffect(() => {
+    applyTheme(settings.theme);
+    applyFont(settings.font);
+  }, [settings.theme, settings.font]);
+
+  const updateSetting = async <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
 

@@ -34,7 +34,7 @@ export const generateRecurringInstances = (
 
     // Generate instances for recurring tasks
     const taskStart = task.due_date ? new Date(task.due_date) : startDate;
-    let currentDate = new Date(Math.max(taskStart.getTime(), startDate.getTime()));
+    const currentDate = new Date(Math.max(taskStart.getTime(), startDate.getTime()));
 
     while (currentDate <= endDate) {
       const dateString = currentDate.toISOString().split('T')[0];

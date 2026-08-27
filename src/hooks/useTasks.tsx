@@ -112,8 +112,8 @@ export const useTasks = () => {
   });
 
   const updateTaskMutation = useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Task> & { id: string }) => {
-      const updateData = { 
+    mutationFn: async ({ id, tags, ...updates }: Partial<Task> & { id: string }) => {
+      const updateData = {
         ...updates,
         updated_at: new Date().toISOString()
       };

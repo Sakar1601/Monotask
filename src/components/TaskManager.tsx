@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Plus, Filter, Search, Check, Edit, Trash2, Clock, Calendar } from 'lucide-react';
+import { Plus, Search, Check, Edit, Trash2, Clock, Calendar, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -8,12 +8,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useTasks, Task } from '@/hooks/useTasks';
 import { useTags } from '@/hooks/useTags';
+import { useTaskParser, ParsedTaskDraft } from '@/hooks/useTaskParser';
 import TaskModal from './TaskModal';
 import ConfirmDialog from './ConfirmDialog';
 
 const TaskManager: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [taskDraft, setTaskDraft] = useState<ParsedTaskDraft | null>(null);
+  const [aiInput, setAiInput] = useState('');
+  const { parseTask, isParsing } = useTaskParser();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [tagFilter, setTagFilter] = useState<string>('all');
@@ -77,7 +81,21 @@ const TaskManager: React.FC = () => {
 
   const handleAddNew = () => {
     setEditingTask(null);
+    setTaskDraft(null);
     setIsModalOpen(true);
+  };
+
+  const handleAiQuickAdd = async () => {
+    if (!aiInput.trim() || isParsing) return;
+    try {
+      const draft = await parseTask(aiInput.trim());
+      setEditingTask(null);
+      setTaskDraft(draft);
+      setIsModalOpen(true);
+      setAiInput('');
+    } catch {
+      // toast already shown by useTaskParser
+    }
   };
 
   const TaskCard: React.FC<{ task: Task; showDate?: boolean }> = ({ task, showDate = false }) => {
@@ -196,12 +214,35 @@ const TaskManager: React.FC = () => {
             {tasks.length} total tasks, {tasks.filter(t => t.status === 'completed').length} completed
           </p>
         </div>
-        <Button 
+        <Button
           onClick={handleAddNew}
           className="bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200 w-full sm:w-auto"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Task
+        </Button>
+      </div>
+
+      {/* AI Quick Add */}
+      <div className="flex flex-col sm:flex-row gap-2 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div className="relative flex-1">
+          <Sparkles className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
+          <Input
+            placeholder="Try: lunch with Sam tomorrow 1pm, high priority"
+            value={aiInput}
+            onChange={(e) => setAiInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAiQuickAdd()}
+            disabled={isParsing}
+            className="pl-10 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-black dark:text-white"
+          />
+        </div>
+        <Button
+          variant="outline"
+          onClick={handleAiQuickAdd}
+          disabled={isParsing || !aiInput.trim()}
+          className="w-full sm:w-auto"
+        >
+          {isParsing ? 'Parsing...' : 'Quick Add with AI'}
         </Button>
       </div>
 
@@ -320,8 +361,10 @@ const TaskManager: React.FC = () => {
         onClose={() => {
           setIsModalOpen(false);
           setEditingTask(null);
+          setTaskDraft(null);
         }}
         task={editingTask}
+        draft={taskDraft}
       />
 
       <ConfirmDialog

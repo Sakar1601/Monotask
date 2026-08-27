@@ -1,1 +1,11 @@
 project_id = "masofmjpnpnxjooqdajl"
+
+# Platform-level JWT verification runs even on CORS preflight (OPTIONS)
+# requests, which never carry an Authorization header - that blocks the
+# preflight before it reaches our code. Both functions do their own
+# supabase.auth.getUser() check internally, so disable the platform gate.
+[functions.weekly-summary]
+verify_jwt = false
+
+[functions.parse-task]
+verify_jwt = false

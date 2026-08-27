@@ -108,7 +108,7 @@ export const useHabits = () => {
   });
 
   const updateHabitMutation = useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Habit> & { id: string }) => {
+    mutationFn: async ({ id, tags, ...updates }: Partial<Habit> & { id: string }) => {
       const { data, error } = await supabase
         .from('habits')
         .update({
