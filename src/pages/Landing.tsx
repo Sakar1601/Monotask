@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState, useRef } from 'react';
-import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CheckSquare, 
   Repeat, 
@@ -11,9 +11,6 @@ import {
   Moon,
   ArrowRight,
   ArrowDown,
-  Github,
-  Linkedin,
-  Twitter,
   Sparkles,
   FileText,
   Upload,
@@ -917,9 +914,9 @@ const Landing = () => {
       {/* Footer */}
       <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-border bg-background">
         <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             {/* Brand */}
-            <div className="md:col-span-2">
+            <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-9 h-9 bg-foreground rounded-xl flex items-center justify-center">
                   <CheckSquare className="w-5 h-5 text-background" />
@@ -929,37 +926,14 @@ const Landing = () => {
               <p className="text-muted-foreground text-sm max-w-xs mb-4">
                 A minimal productivity app designed to help you focus on what matters most.
               </p>
-              <div className="flex items-center gap-3">
-                <motion.a 
-                  href="#" 
-                  whileHover={{ scale: 1.1, y: -2 }}
-                  className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-colors"
-                >
-                  <Twitter className="w-4 h-4" />
-                </motion.a>
-                <motion.a 
-                  href="#" 
-                  whileHover={{ scale: 1.1, y: -2 }}
-                  className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-colors"
-                >
-                  <Github className="w-4 h-4" />
-                </motion.a>
-                <motion.a 
-                  href="#" 
-                  whileHover={{ scale: 1.1, y: -2 }}
-                  className="w-9 h-9 rounded-lg bg-accent flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/80 transition-colors"
-                >
-                  <Linkedin className="w-4 h-4" />
-                </motion.a>
-              </div>
             </div>
-            
+
             {/* Links */}
             <div>
               <h4 className="font-semibold text-foreground mb-4">Product</h4>
               <ul className="space-y-2">
                 <li>
-                  <button 
+                  <button
                     onClick={() => navigate('/auth?mode=signup')}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
@@ -967,7 +941,7 @@ const Landing = () => {
                   </button>
                 </li>
                 <li>
-                  <button 
+                  <button
                     onClick={scrollToFeatures}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
@@ -975,34 +949,12 @@ const Landing = () => {
                   </button>
                 </li>
                 <li>
-                  <button 
+                  <button
                     onClick={() => navigate('/auth')}
                     className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Login
                   </button>
-                </li>
-              </ul>
-            </div>
-
-            {/* Legal */}
-            <div>
-              <h4 className="font-semibold text-foreground mb-4">Legal</h4>
-              <ul className="space-y-2">
-                <li>
-                  <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                    Privacy Policy
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                    Terms of Service
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                    Contact
-                  </a>
                 </li>
               </ul>
             </div>

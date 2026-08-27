@@ -6,6 +6,7 @@ import { useTasks } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
 import { useAuth } from '@/hooks/useAuth';
 import { exportToPDF } from '@/utils/pdfExport';
+import { toCsvRow } from '@/utils/csv';
 import UpgradeAccountModal from './UpgradeAccountModal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -31,15 +32,12 @@ const Settings: React.FC = () => {
   };
 
   const handleExportCSV = () => {
-    // Create CSV content
-    let csvContent = "data:text/csv;charset=utf-8,";
-    
-    // Tasks CSV
-    csvContent += "TASKS\n";
-    csvContent += "Title,Description,Status,Priority,Due Date,Due Time,Created At\n";
-    
+    const lines: string[] = [];
+
+    lines.push('TASKS');
+    lines.push(toCsvRow(['Title', 'Description', 'Status', 'Priority', 'Due Date', 'Due Time', 'Created At']));
     tasks.forEach(task => {
-      const row = [
+      lines.push(toCsvRow([
         task.title,
         task.description || '',
         task.status || '',
@@ -47,45 +45,41 @@ const Settings: React.FC = () => {
         task.due_date || '',
         task.due_time || '',
         task.created_at
-      ].map(field => `"${field}"`).join(',');
-      csvContent += row + "\n";
+      ]));
     });
 
-    csvContent += "\nHABITS\n";
-    csvContent += "Name,Description,Frequency,Preferred Time,Created At\n";
-    
+    lines.push('');
+    lines.push('HABITS');
+    lines.push(toCsvRow(['Name', 'Description', 'Frequency', 'Preferred Time', 'Created At']));
     habits.forEach(habit => {
-      const row = [
+      lines.push(toCsvRow([
         habit.name,
         habit.description || '',
         habit.frequency,
         habit.preferred_time || '',
         habit.created_at
-      ].map(field => `"${field}"`).join(',');
-      csvContent += row + "\n";
+      ]));
     });
 
-    csvContent += "\nHABIT LOGS\n";
-    csvContent += "Habit ID,Date,Status,Notes\n";
-    
+    lines.push('');
+    lines.push('HABIT LOGS');
+    lines.push(toCsvRow(['Habit ID', 'Date', 'Status', 'Notes']));
     logs.forEach(log => {
-      const row = [
+      lines.push(toCsvRow([
         log.habit_id,
         log.date,
         log.status,
         log.notes || ''
-      ].map(field => `"${field}"`).join(',');
-      csvContent += row + "\n";
+      ]));
     });
 
-    // Download CSV
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "monotask-data.csv");
-    document.body.appendChild(link);
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'monotask-data.csv';
     link.click();
-    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {

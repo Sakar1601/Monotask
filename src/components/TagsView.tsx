@@ -7,15 +7,19 @@ import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Plus, Trash2, Tag as TagIcon } from 'lucide-react';
 import { useTags } from '@/hooks/useTags';
+import { cn } from '@/lib/utils';
+
+const grayscaleColors = ['#111827', '#374151', '#6b7280', '#9ca3af', '#d1d5db'];
 
 const TagsView: React.FC = () => {
   const { tagsWithUsage, createTag, deleteTag, isCreatingTag, isDeletingTag } = useTags();
   const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState(grayscaleColors[2]);
 
   const handleCreateTag = (e: React.FormEvent) => {
     e.preventDefault();
     if (newTagName.trim()) {
-      createTag({ name: newTagName.trim() });
+      createTag({ name: newTagName.trim(), color: newTagColor });
       setNewTagName('');
     }
   };
@@ -23,10 +27,6 @@ const TagsView: React.FC = () => {
   const handleDeleteTag = (tagId: string) => {
     deleteTag(tagId);
   };
-
-  const grayscaleColors = [
-    '#111827', '#374151', '#6b7280', '#9ca3af', '#d1d5db'
-  ];
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -46,7 +46,7 @@ const TagsView: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleCreateTag} className="flex gap-3">
+          <form onSubmit={handleCreateTag} className="flex flex-col sm:flex-row gap-3">
             <Input
               placeholder="Enter tag name"
               value={newTagName}
@@ -54,8 +54,25 @@ const TagsView: React.FC = () => {
               className="flex-1 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
               maxLength={50}
             />
-            <Button 
-              type="submit" 
+            <div className="flex items-center gap-2" role="radiogroup" aria-label="Tag color">
+              {grayscaleColors.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  role="radio"
+                  aria-checked={newTagColor === color}
+                  aria-label={`Color ${color}`}
+                  onClick={() => setNewTagColor(color)}
+                  className={cn(
+                    'w-6 h-6 rounded-full border-2 transition-transform',
+                    newTagColor === color ? 'border-black dark:border-white scale-110' : 'border-transparent'
+                  )}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+            <Button
+              type="submit"
               disabled={!newTagName.trim() || isCreatingTag}
               className="bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
             >
