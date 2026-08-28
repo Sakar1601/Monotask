@@ -152,6 +152,7 @@ export const useTags = () => {
     tagsWithUsage,
     isLoading: isLoading || isLoadingUsage,
     createTag: createTagMutation.mutate,
+    createTagAsync: createTagMutation.mutateAsync,
     deleteTag: deleteTagMutation.mutate,
     isCreatingTag: createTagMutation.isPending,
     isDeletingTag: deleteTagMutation.isPending,

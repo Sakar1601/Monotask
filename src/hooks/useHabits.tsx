@@ -225,6 +225,7 @@ export const useHabits = () => {
     logs,
     isLoading,
     createHabit: createHabitMutation.mutate,
+    createHabitAsync: createHabitMutation.mutateAsync,
     updateHabit: updateHabitMutation.mutate,
     deleteHabit: deleteHabitMutation.mutate,
     logHabit: logHabitMutation.mutate,

@@ -1,21 +1,31 @@
 import React, { useState } from 'react';
 import { Moon, Sun, Download, Upload, UserPlus, LogOut } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useSettings } from '@/hooks/useSettings';
 import { useTasks } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
+import { useTags } from '@/hooks/useTags';
 import { useAuth } from '@/hooks/useAuth';
 import { exportToPDF } from '@/utils/pdfExport';
 import { toCsvRow } from '@/utils/csv';
+import { buildExportData, parseImportFile, MonotaskExport } from '@/utils/dataPortability';
 import UpgradeAccountModal from './UpgradeAccountModal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Settings: React.FC = () => {
   const { settings, updateSetting } = useSettings();
-  const { tasks } = useTasks();
-  const { habits, logs } = useHabits();
+  const { tasks, createTaskAsync, isLoading: tasksLoading } = useTasks();
+  const { habits, logs, createHabitAsync, isLoading: habitsLoading } = useHabits();
+  const { tags, createTagAsync, isLoading: tagsLoading } = useTags();
   const { user, isAnonymous, signOut } = useAuth();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  // Export/import must never run against tasks/habits/tags that haven't
+  // finished loading yet - that silently produces an empty export or,
+  // during import, treats every one of the account's own default tags as
+  // "new" and drops the tag off any imported task/habit that used one.
+  const dataReady = !tasksLoading && !habitsLoading && !tagsLoading;
 
   const handleToggleDarkMode = () => {
     const newTheme = settings?.theme === 'dark' ? 'light' : 'dark';
@@ -27,7 +37,7 @@ const Settings: React.FC = () => {
       await exportToPDF(tasks, habits, logs);
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      alert('Failed to export PDF. Please try again.');
+      toast.error('Failed to export PDF. Please try again.');
     }
   };
 
@@ -82,22 +92,87 @@ const Settings: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportJSON = () => {
+    const data = buildExportData(tasks, habits, tags);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `monotask-backup-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
+      let data: MonotaskExport;
       try {
         const content = e.target?.result as string;
-        const data = JSON.parse(content);
-        
-        // Here you would implement the import logic
-        console.log('Import data:', data);
-        alert('Import functionality will be implemented in a future update.');
+        data = parseImportFile(JSON.parse(content));
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to parse the import file.');
+        return;
+      }
+
+      setIsImporting(true);
+      try {
+        const tagIdByName = new Map(tags.map((tag) => [tag.name, tag.id]));
+
+        for (const importedTag of data.tags) {
+          if (tagIdByName.has(importedTag.name)) continue;
+          try {
+            const created = await createTagAsync({ name: importedTag.name, color: importedTag.color });
+            tagIdByName.set(created.name, created.id);
+          } catch {
+            // Most likely a duplicate name (a tag by this name already exists but
+            // wasn't in our loaded snapshot) - fall back to the real existing tag
+            // instead of silently dropping every task/habit that referenced it.
+            const existing = tags.find((tag) => tag.name === importedTag.name);
+            if (existing) tagIdByName.set(existing.name, existing.id);
+          }
+        }
+
+        let taskCount = 0;
+        for (const importedTask of data.tasks) {
+          await createTaskAsync({
+            title: importedTask.title,
+            description: importedTask.description || undefined,
+            due_date: importedTask.due_date || undefined,
+            due_time: importedTask.due_time || undefined,
+            priority: importedTask.priority,
+            status: importedTask.status,
+            repeat_type: importedTask.repeat_type,
+            repeat_interval: importedTask.repeat_interval,
+            tag_id: importedTask.tag_name ? tagIdByName.get(importedTask.tag_name) : undefined,
+          });
+          taskCount++;
+        }
+
+        let habitCount = 0;
+        for (const importedHabit of data.habits) {
+          await createHabitAsync({
+            name: importedHabit.name,
+            description: importedHabit.description || undefined,
+            frequency: importedHabit.frequency,
+            frequency_days: importedHabit.frequency_days || undefined,
+            preferred_time: importedHabit.preferred_time || undefined,
+            tag_id: importedHabit.tag_name ? tagIdByName.get(importedHabit.tag_name) : undefined,
+            is_active: true,
+          });
+          habitCount++;
+        }
+
+        toast.success(`Imported ${taskCount} task${taskCount === 1 ? '' : 's'} and ${habitCount} habit${habitCount === 1 ? '' : 's'}.`);
       } catch (error) {
         console.error('Error importing data:', error);
-        alert('Failed to import data. Please ensure the file is valid JSON.');
+        toast.error('Import stopped partway through - some items may already have been created.');
+      } finally {
+        setIsImporting(false);
       }
     };
     reader.readAsText(file);
@@ -211,48 +286,60 @@ const Settings: React.FC = () => {
             <h3 className="font-medium text-foreground mb-2">Export Data</h3>
             <p className="text-sm text-muted-foreground mb-4">Download your tasks and habits data</p>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button 
+              <Button
                 onClick={handleExportPDF}
+                disabled={!dataReady}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export as PDF
               </Button>
-              <Button 
+              <Button
                 onClick={handleExportCSV}
                 variant="outline"
+                disabled={!dataReady}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export as CSV
+              </Button>
+              <Button
+                onClick={handleExportJSON}
+                variant="outline"
+                disabled={!dataReady}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export as JSON
               </Button>
             </div>
           </div>
 
           <div>
             <h3 className="font-medium text-foreground mb-2">Import Data</h3>
-            <p className="text-sm text-muted-foreground mb-4">Upload your data from a backup file</p>
+            <p className="text-sm text-muted-foreground mb-4">Restore tasks, habits, and tags from a Monotask JSON backup</p>
             <div className="flex items-center">
               <input
                 type="file"
-                accept=".json,.csv"
+                accept=".json"
                 onChange={handleImportData}
                 className="hidden"
                 id="import-file"
+                disabled={isImporting || !dataReady}
               />
               <label htmlFor="import-file">
-                <Button 
+                <Button
                   variant="outline"
                   className="cursor-pointer"
+                  disabled={isImporting || !dataReady}
                   asChild
                 >
                   <span>
                     <Upload className="w-4 h-4 mr-2" />
-                    Import Data
+                    {isImporting ? 'Importing...' : 'Import Data'}
                   </span>
                 </Button>
               </label>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Supports JSON and CSV formats
+              Only accepts JSON files exported from Monotask above. Habit completion history isn't included.
             </p>
           </div>
         </div>

@@ -231,6 +231,7 @@ export const useTasks = () => {
     isLoading,
     error,
     createTask: createTaskMutation.mutate,
+    createTaskAsync: createTaskMutation.mutateAsync,
     updateTask: updateTaskMutation.mutate,
     deleteTask: deleteTaskMutation.mutate,
     isCreating: createTaskMutation.isPending,
