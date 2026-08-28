@@ -35,3 +35,8 @@ PROJECT_ANALYSIS.md
 
 # Demo account credentials - real passwords, never commit
 DEMO_CREDENTIALS.md
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
