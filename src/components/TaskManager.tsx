@@ -6,11 +6,19 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { useTasks, Task } from '@/hooks/useTasks';
+import { useTasks, Task, formatDateLocal } from '@/hooks/useTasks';
+import { useTaskInstances } from '@/hooks/useTaskInstances';
 import { useTags } from '@/hooks/useTags';
 import { useTaskParser, ParsedTaskDraft } from '@/hooks/useTaskParser';
+import { generateRecurringInstances, getTasksForDate, RecurringTaskInstance } from '@/utils/recurringTasks';
+import { isOccurrenceCompleted, getOccurrenceDate, toggleOccurrenceComplete } from '@/utils/taskOccurrences';
 import TaskModal from './TaskModal';
 import ConfirmDialog from './ConfirmDialog';
+
+// Plain (non-recurring-expanded) tasks still render through the same card -
+// this just gives them the RecurringTaskInstance shape with no instance
+// tracking, so isOccurrenceCompleted falls back to task.status.
+const asOccurrence = (task: Task): RecurringTaskInstance => ({ ...task, instance_date: task.due_date || '' });
 
 const TaskManager: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,17 +32,16 @@ const TaskManager: React.FC = () => {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; taskId?: string }>({ isOpen: false });
   
-  const { 
-    tasks, 
-    updateTask, 
-    deleteTask, 
-    isLoading, 
-    isUpdating, 
+  const {
+    tasks,
+    updateTask,
+    deleteTask,
+    isLoading,
+    isUpdating,
     isDeleting,
-    getTodayTasks,
-    getUpcomingTasks,
     getOverdueTasks
   } = useTasks();
+  const { instances, updateInstance, isUpdating: isUpdatingInstance } = useTaskInstances();
   const { tags } = useTags();
 
   const formatLocalDate = (dateString: string) => {
@@ -43,25 +50,49 @@ const TaskManager: React.FC = () => {
     return date.toLocaleDateString();
   };
 
-  const filterTasks = (taskList: Task[]) => {
+  const filterTasks = (taskList: RecurringTaskInstance[]) => {
     return taskList.filter(task => {
       const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (task.description?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
-      const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
+      const matchesStatus = statusFilter === 'all' || (statusFilter === 'completed' ? isOccurrenceCompleted(task) : !isOccurrenceCompleted(task));
       const matchesTag = tagFilter === 'all' || task.tag_id === tagFilter;
       const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
-      
+
       return matchesSearch && matchesStatus && matchesTag && matchesPriority;
     });
   };
 
-  const handleToggleComplete = (task: Task) => {
-    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
-    updateTask({
-      id: task.id,
-      status: newStatus,
-      completed_at: newStatus === 'completed' ? new Date().toISOString() : null
+  // Today: every occurrence (recurring or not) whose date falls today.
+  const getTodayOccurrences = (): RecurringTaskInstance[] => {
+    const todayStr = formatDateLocal(new Date());
+    return getTasksForDate(tasks, instances, todayStr);
+  };
+
+  // Upcoming: same "today (uncompleted) + all of tomorrow + rest of week
+  // (uncompleted)" window useTasks.getUpcomingTasks used, now occurrence-aware.
+  const getUpcomingOccurrences = (): RecurringTaskInstance[] => {
+    const today = new Date();
+    const todayStr = formatDateLocal(today);
+    const tomorrow = new Date();
+    tomorrow.setDate(today.getDate() + 1);
+    const tomorrowStr = formatDateLocal(tomorrow);
+    const nextWeek = new Date();
+    nextWeek.setDate(today.getDate() + 7);
+
+    const occurrences = generateRecurringInstances(tasks, instances, today, nextWeek);
+    return occurrences.filter(item => {
+      const date = getOccurrenceDate(item);
+      if (!date) return false;
+      const completed = isOccurrenceCompleted(item);
+      if (date === todayStr) return !completed;
+      if (date === tomorrowStr) return true;
+      if (date > tomorrowStr) return !completed;
+      return false;
     });
+  };
+
+  const handleToggleComplete = (item: RecurringTaskInstance) => {
+    toggleOccurrenceComplete(item, { updateTask, updateInstance });
   };
 
   const handleEditTask = (task: Task) => {
@@ -98,9 +129,10 @@ const TaskManager: React.FC = () => {
     }
   };
 
-  const TaskCard: React.FC<{ task: Task; showDate?: boolean }> = ({ task, showDate = false }) => {
-    const isCompleted = task.status === 'completed';
-    const isOverdue = task.due_date && new Date(task.due_date + 'T00:00:00') < new Date() && !isCompleted;
+  const TaskCard: React.FC<{ task: RecurringTaskInstance; showDate?: boolean }> = ({ task, showDate = false }) => {
+    const isCompleted = isOccurrenceCompleted(task);
+    const displayDate = getOccurrenceDate(task);
+    const isOverdue = displayDate && new Date(displayDate + 'T00:00:00') < new Date() && !isCompleted;
 
     return (
       <div className={`p-4 border rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
@@ -110,7 +142,7 @@ const TaskManager: React.FC = () => {
           <div className="flex items-start space-x-3 flex-1">
             <button
               onClick={() => handleToggleComplete(task)}
-              disabled={isUpdating}
+              disabled={isUpdating || isUpdatingInstance}
               className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                 isCompleted
                   ? 'bg-black dark:bg-white border-black dark:border-white text-white dark:text-black'
@@ -139,10 +171,10 @@ const TaskManager: React.FC = () => {
               )}
               
               <div className="flex items-center gap-3 mt-2 text-xs">
-                {(showDate && task.due_date) && (
+                {(showDate && displayDate) && (
                   <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
                     <Calendar className="w-3 h-3" />
-                    {formatLocalDate(task.due_date)}
+                    {formatLocalDate(displayDate)}
                   </span>
                 )}
                 {task.due_time && (
@@ -200,10 +232,10 @@ const TaskManager: React.FC = () => {
     );
   }
 
-  const todayTasks = filterTasks(getTodayTasks());
-  const upcomingTasks = filterTasks(getUpcomingTasks());
-  const overdueTasks = filterTasks(getOverdueTasks());
-  const allTasks = filterTasks(tasks);
+  const todayTasks = filterTasks(getTodayOccurrences());
+  const upcomingTasks = filterTasks(getUpcomingOccurrences());
+  const overdueTasks = filterTasks(getOverdueTasks().map(asOccurrence));
+  const allTasks = filterTasks(tasks.map(asOccurrence));
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -317,7 +349,7 @@ const TaskManager: React.FC = () => {
               </Button>
             </div>
           ) : (
-            todayTasks.map(task => <TaskCard key={task.id} task={task} />)
+            todayTasks.map(task => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} />)
           )}
         </TabsContent>
         
@@ -327,7 +359,7 @@ const TaskManager: React.FC = () => {
               <p className="text-gray-500 dark:text-gray-400">No upcoming tasks</p>
             </div>
           ) : (
-            upcomingTasks.map(task => <TaskCard key={task.id} task={task} showDate />)
+            upcomingTasks.map(task => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} showDate />)
           )}
         </TabsContent>
         
@@ -337,7 +369,7 @@ const TaskManager: React.FC = () => {
               <p className="text-gray-500 dark:text-gray-400">No overdue tasks</p>
             </div>
           ) : (
-            overdueTasks.map(task => <TaskCard key={task.id} task={task} showDate />)
+            overdueTasks.map(task => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} showDate />)
           )}
         </TabsContent>
         
@@ -351,7 +383,7 @@ const TaskManager: React.FC = () => {
               </Button>
             </div>
           ) : (
-            allTasks.map(task => <TaskCard key={task.id} task={task} showDate />)
+            allTasks.map(task => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} showDate />)
           )}
         </TabsContent>
       </Tabs>

@@ -4,6 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { useTasks, Task } from '@/hooks/useTasks';
 import { useSettings } from '@/hooks/useSettings';
+import { RecurringTaskInstance } from '@/utils/recurringTasks';
+import { isOccurrenceCompleted } from '@/utils/taskOccurrences';
 import { Edit, Trash2, Check, Plus } from 'lucide-react';
 import TaskModal from './TaskModal';
 import ConfirmDialog from './ConfirmDialog';
@@ -12,14 +14,15 @@ interface DayTasksModalProps {
   isOpen: boolean;
   onClose: () => void;
   date: string;
-  tasks: Task[];
+  tasks: RecurringTaskInstance[];
+  onToggleComplete: (item: RecurringTaskInstance) => void;
 }
 
-const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, tasks }) => {
+const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, tasks, onToggleComplete }) => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; taskId?: string }>({ isOpen: false });
-  const { updateTask, deleteTask, isUpdating, isDeleting } = useTasks();
+  const { deleteTask, isUpdating, isDeleting } = useTasks();
   const { settings } = useSettings();
 
   const formatDate = (dateString: string) => {
@@ -47,15 +50,6 @@ const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, ta
     return `${hours}:${minutes}`;
   };
 
-  const handleToggleComplete = (task: Task) => {
-    const newStatus = task.status === 'completed' ? 'pending' : 'completed';
-    updateTask({
-      id: task.id,
-      status: newStatus,
-      completed_at: newStatus === 'completed' ? new Date().toISOString() : null
-    });
-  };
-
   const handleEditTask = (task: Task) => {
     setEditingTask(task);
     setIsTaskModalOpen(true);
@@ -76,8 +70,8 @@ const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, ta
     setIsTaskModalOpen(true);
   };
 
-  const completedTasks = tasks.filter(task => task.status === 'completed');
-  const pendingTasks = tasks.filter(task => task.status === 'pending');
+  const completedTasks = tasks.filter(task => isOccurrenceCompleted(task));
+  const pendingTasks = tasks.filter(task => !isOccurrenceCompleted(task));
 
   return (
     <>
@@ -110,9 +104,9 @@ const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, ta
                 <div className="space-y-2">
                   {pendingTasks.map((task) => (
                     <TaskCard
-                      key={task.id}
+                      key={`${task.id}-${task.instance_date}`}
                       task={task}
-                      onToggleComplete={handleToggleComplete}
+                      onToggleComplete={onToggleComplete}
                       onEdit={handleEditTask}
                       onDelete={handleDeleteTask}
                       isUpdating={isUpdating}
@@ -133,9 +127,9 @@ const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, ta
                 <div className="space-y-2">
                   {completedTasks.map((task) => (
                     <TaskCard
-                      key={task.id}
+                      key={`${task.id}-${task.instance_date}`}
                       task={task}
-                      onToggleComplete={handleToggleComplete}
+                      onToggleComplete={onToggleComplete}
                       onEdit={handleEditTask}
                       onDelete={handleDeleteTask}
                       isUpdating={isUpdating}
@@ -188,8 +182,8 @@ const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, ta
 };
 
 interface TaskCardProps {
-  task: Task;
-  onToggleComplete: (task: Task) => void;
+  task: RecurringTaskInstance;
+  onToggleComplete: (task: RecurringTaskInstance) => void;
   onEdit: (task: Task) => void;
   onDelete: (taskId: string) => void;
   isUpdating: boolean;
@@ -206,7 +200,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   isDeleting,
   formatTime
 }) => {
-  const isCompleted = task.status === 'completed';
+  const isCompleted = isOccurrenceCompleted(task);
 
   return (
     <div className={`p-4 border rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-gray-200 dark:border-gray-700 ${
