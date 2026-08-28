@@ -64,6 +64,18 @@ const Landing = () => {
       color: 'from-foreground/10 to-foreground/5'
     },
     {
+      icon: Sparkles,
+      title: 'AI Quick Add',
+      description: 'Type a task in plain English - "lunch with Sam tomorrow 1pm" - and AI fills in the rest.',
+      color: 'from-foreground/10 to-foreground/5'
+    },
+    {
+      icon: Zap,
+      title: 'AI Weekly Summary',
+      description: 'Get a short AI-generated recap of your week\'s tasks and habits, on demand.',
+      color: 'from-foreground/10 to-foreground/5'
+    },
+    {
       icon: Repeat,
       title: 'Habit Tracker',
       description: 'Build consistent routines and view your habit streaks over time.',
