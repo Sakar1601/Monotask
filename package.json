@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "eval:parse-task": "tsx scripts/evals/parse-task.eval.ts",
-    "seed:demo": "tsx scripts/seed-demo-data.ts"
+    "seed:demo": "tsx scripts/seed-demo-data.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -71,6 +74,7 @@
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
     "@eslint/js": "^9.9.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/typography": "^0.5.15",
     "@types/node": "^22.5.5",
     "@types/react": "^18.3.3",
@@ -87,6 +91,7 @@
     "tsx": "^4.19.0",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.68.0",
-    "vite": "^5.4.1"
+    "vite": "^5.4.1",
+    "vitest": "^4.1.11"
   }
 }
