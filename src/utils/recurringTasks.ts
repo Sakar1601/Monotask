@@ -77,11 +77,12 @@ export const getTasksForDate = (
   instances: TaskInstance[],
   date: string
 ): RecurringTaskInstance[] => {
+  // generateRecurringInstances treats both bounds as inclusive, so a single
+  // day's range is [date, date] - passing date+1 as the end (as this used
+  // to) doubles the range to two inclusive days, leaking the next day's
+  // occurrence into this day's list and colliding React keys on daily tasks.
   const targetDate = new Date(date);
-  const nextDay = new Date(targetDate);
-  nextDay.setDate(nextDay.getDate() + 1);
-  
-  return generateRecurringInstances(tasks, instances, targetDate, nextDay);
+  return generateRecurringInstances(tasks, instances, targetDate, targetDate);
 };
 
 export const getTasksForWeek = (

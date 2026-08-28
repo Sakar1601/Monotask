@@ -2,6 +2,9 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
+import { useTaskInstances } from '@/hooks/useTaskInstances';
+import { getTasksForDate as getOccurrencesForDate, generateRecurringInstances, RecurringTaskInstance } from '@/utils/recurringTasks';
+import { isOccurrenceCompleted, getOccurrenceDate, toggleOccurrenceComplete } from '@/utils/taskOccurrences';
 import TaskModal from './TaskModal';
 import DayTasksModal from './DayTasksModal';
 
@@ -12,8 +15,10 @@ const CalendarView: React.FC = () => {
   const [isDayTasksModalOpen, setIsDayTasksModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [prefilledDate, setPrefilledDate] = useState<string>('');
-  
-  const { tasks, isLoading } = useTasks();
+
+  const { tasks, isLoading: tasksLoading, updateTask } = useTasks();
+  const { instances, isLoading: instancesLoading, updateInstance } = useTaskInstances();
+  const isLoading = tasksLoading || instancesLoading;
 
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -39,8 +44,12 @@ const CalendarView: React.FC = () => {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
 
-  const getTasksForDate = (dateString: string) => {
-    return tasks.filter(task => task.due_date === dateString);
+  const getTasksForDate = (dateString: string): RecurringTaskInstance[] => {
+    return getOccurrencesForDate(tasks, instances, dateString);
+  };
+
+  const handleToggleComplete = (item: RecurringTaskInstance) => {
+    toggleOccurrenceComplete(item, { updateTask, updateInstance });
   };
 
   const handleDayClick = (date: Date) => {
@@ -102,9 +111,9 @@ const CalendarView: React.FC = () => {
           <div className="space-y-2">
             {dayTasks.map((task) => (
               <div 
-                key={task.id}
+                key={`${task.id}-${getOccurrenceDate(task)}`}
                 className={`text-xs p-2 rounded ${
-                  task.status === 'completed' 
+                  isOccurrenceCompleted(task) 
                     ? 'bg-gray-200 dark:bg-gray-700 line-through text-gray-600 dark:text-gray-400' 
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                 }`}
@@ -158,9 +167,9 @@ const CalendarView: React.FC = () => {
           <div className="space-y-1 overflow-hidden">
             {dayTasks.slice(0, 3).map((task) => (
               <div 
-                key={task.id} 
+                key={`${task.id}-${getOccurrenceDate(task)}`} 
                 className={`text-xs p-1 rounded truncate ${
-                  task.status === 'completed' 
+                  isOccurrenceCompleted(task) 
                     ? 'bg-gray-200 dark:bg-gray-700 line-through text-gray-600 dark:text-gray-400' 
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                 }`}
@@ -185,18 +194,12 @@ const CalendarView: React.FC = () => {
   const renderAgendaView = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    const upcomingTasks = tasks
-      .filter(task => {
-        if (!task.due_date) return false;
-        const taskDate = new Date(task.due_date + 'T00:00:00');
-        return taskDate >= today;
-      })
-      .sort((a, b) => {
-        const dateA = new Date(a.due_date! + 'T00:00:00');
-        const dateB = new Date(b.due_date! + 'T00:00:00');
-        return dateA.getTime() - dateB.getTime();
-      })
+    const horizon = new Date(today);
+    horizon.setDate(horizon.getDate() + 30);
+
+    const upcomingTasks = generateRecurringInstances(tasks, instances, today, horizon)
+      .filter(item => !!getOccurrenceDate(item))
+      .sort((a, b) => getOccurrenceDate(a).localeCompare(getOccurrenceDate(b)))
       .slice(0, 10);
 
     return (
@@ -207,12 +210,12 @@ const CalendarView: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {upcomingTasks.map((task) => (
-              <div key={task.id} className="flex items-center space-x-4 p-3 border-l-4 border-black dark:border-white bg-gray-50 dark:bg-gray-700 transition-colors">
+              <div key={`${task.id}-${getOccurrenceDate(task)}`} className="flex items-center space-x-4 p-3 border-l-4 border-black dark:border-white bg-gray-50 dark:bg-gray-700 transition-colors">
                 <div className="text-sm text-gray-600 dark:text-gray-400">
-                  {task.due_date ? new Date(task.due_date + 'T00:00:00').toLocaleDateString() : 'No date'}
+                  {new Date(getOccurrenceDate(task) + 'T00:00:00').toLocaleDateString()}
                 </div>
                 <div className="flex-1">
-                  <div className={`font-medium text-black dark:text-white ${task.status === 'completed' ? 'line-through' : ''}`}>
+                  <div className={`font-medium text-black dark:text-white ${isOccurrenceCompleted(task) ? 'line-through' : ''}`}>
                     {task.title}
                   </div>
                   {task.due_time && (
@@ -326,6 +329,7 @@ const CalendarView: React.FC = () => {
         }}
         date={selectedDate}
         tasks={getTasksForDate(selectedDate)}
+        onToggleComplete={handleToggleComplete}
       />
     </div>
   );
