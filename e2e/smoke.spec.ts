@@ -7,9 +7,9 @@ import { test, expect } from '@playwright/test';
 // UI layer.
 test('landing -> guest sign-in -> create and complete a task', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /stay focused/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /do one thing/i })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Sign In' }).first().click();
+  await page.getByRole('button', { name: 'Sign in' }).first().click();
   await page.waitForURL('**/auth');
 
   await page.getByText('Continue as Guest').click();
