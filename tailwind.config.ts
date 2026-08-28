@@ -23,6 +23,7 @@ export default {
 			fontFamily: {
 				'sans': ['Inter', 'system-ui', 'sans-serif'],
 				'grotesk': ['Space Grotesk', 'system-ui', 'sans-serif'],
+				'mono': ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
