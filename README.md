@@ -1,6 +1,6 @@
 # Monotask - Project Documentation
 
-> A minimal productivity application for managing tasks and habits, built with React, TypeScript, and Supabase.
+> A minimal productivity application for managing tasks and habits, built with React, TypeScript, and Supabase - with AI-assisted task capture and weekly summaries via Claude.
 
 ---
 
@@ -17,28 +17,32 @@
 9. [State Management](#state-management)
 10. [Security & RLS Policies](#security--rls-policies)
 11. [Features & Business Logic](#features--business-logic)
-12. [Configuration & Dependencies](#configuration--dependencies)
-13. [File Structure](#file-structure)
+12. [AI Features](#ai-features)
+13. [Testing & CI/CD](#testing--cicd)
+14. [Configuration & Dependencies](#configuration--dependencies)
+15. [File Structure](#file-structure)
 
 ---
 
 ## Project Overview
 
 **Monotask** is a minimalist productivity application that helps users:
-- Create and manage tasks with due dates, priorities, and tags
+- Create and manage tasks with due dates, priorities, and tags - including recurring schedules and AI-assisted quick capture
 - Track daily/weekly/monthly habits
-- Visualize progress through analytics and charts
-- Export data in PDF and CSV formats
+- Visualize progress through analytics, charts, and an on-demand AI-generated weekly summary
+- Export data in PDF, CSV, or a round-trippable JSON format - and import it back
 
 ### Key Features
-- **Task Management**: Create, edit, delete, and complete tasks with recurring schedules
+- **Task Management**: Create, edit, delete, and complete tasks, including recurring daily/weekly/monthly schedules that expand into real per-day occurrences on the Calendar and in Task Manager
+- **AI Quick Add**: Type a task in plain English ("lunch with Sam tomorrow 1pm, high priority") and Claude fills in the structured fields for review
+- **AI Weekly Summary**: On-demand, AI-generated recap of the week's task and habit activity
 - **Habit Tracking**: Log daily habits with completion status (done, skipped, missed)
-- **Calendar View**: Month/week/agenda views with task visualization
+- **Calendar View**: Month/week/agenda views with task visualization, recurring-task-aware
 - **Progress Analytics**: Weekly completion charts, category distribution, activity heatmap
 - **Tags System**: Organize tasks and habits with custom color-coded tags
 - **Dark/Light Theme**: User-configurable appearance settings
 - **Guest Access**: Anonymous sign-in with account upgrade capability
-- **Data Export**: PDF and CSV export functionality
+- **Data Export/Import**: PDF and CSV export, plus a JSON format that round-trips - export your data and import it back (into the same or a different account)
 
 ---
 
@@ -50,11 +54,15 @@
 | **Styling** | Tailwind CSS, shadcn/ui components |
 | **State Management** | TanStack Query (React Query) |
 | **Backend** | Supabase (PostgreSQL, Auth, RLS) |
+| **Serverless functions** | Supabase Edge Functions (Deno) |
+| **AI** | Claude (Anthropic API) via `@anthropic-ai/sdk`, structured outputs |
 | **Charts** | Recharts |
-| **Routing** | React Router DOM v6 |
+| **Routing** | React Router DOM v7 |
 | **Forms** | React Hook Form, Zod validation |
 | **Notifications** | Sonner (toast notifications) |
 | **PDF Export** | jsPDF |
+| **Testing** | Vitest (unit), Playwright (E2E) |
+| **CI/CD** | GitHub Actions (typecheck, lint, test, build) + Vercel |
 
 ---
 
@@ -100,6 +108,12 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+Two Supabase Edge Functions (`supabase/functions/parse-task`, `supabase/functions/weekly-summary`)
+sit between the client and Claude for the AI features. They run with the caller's JWT (not a
+service-role key), re-verify auth themselves, enforce a per-user daily call cap via a
+`check_and_increment_ai_usage` Postgres function before calling the Anthropic API, and are the
+only place the `ANTHROPIC_API_KEY` secret is ever used - it never reaches the client.
+
 ### Provider Hierarchy
 
 ```tsx
@@ -124,8 +138,9 @@ QueryClientProvider          // React Query cache management
 | `habits` | Recurring habit definitions |
 | `logs` | Habit completion logs |
 | `tags` | User-created categories |
-| `goals` | User goals with targets |
-| `task_instances` | Recurring task instance tracking |
+| `goals` | User goals with targets (schema only - no UI reads/writes this table) |
+| `task_instances` | Recurring task instance tracking - actively used by Calendar and Task Manager |
+| `ai_usage` | Per-user daily call counter for the AI features, enforced server-side |
 
 ### Entity Relationship Diagram
 
@@ -259,6 +274,19 @@ color: text (hex color, default '#6b7280')
 created_at: timestamp
 ```
 
+#### `ai_usage`
+Per-user, per-feature, per-day call counter backing the AI rate limits. Not written directly by
+any client - only through the `check_and_increment_ai_usage(feature, daily_limit)` SECURITY
+DEFINER function, which atomically checks-and-increments in one statement.
+```sql
+user_id: uuid (FK → auth.users)
+feature: text  -- 'parse-task' | 'weekly-summary'
+usage_date: date (default current_date)
+call_count: integer (default 0)
+updated_at: timestamp
+PRIMARY KEY (user_id, feature, usage_date)
+```
+
 ---
 
 ## Authentication Flow
@@ -366,6 +394,9 @@ interface AuthContextType {
 └─────────────────────────────────────────────────────────────┘
 ```
 
+Below the `md` breakpoint, `Sidebar` becomes an off-canvas drawer (opened via a hamburger button
+in `TopBar`) instead of the fixed column shown above.
+
 ### Navigation Flow
 
 ```
@@ -429,12 +460,12 @@ User Opens App
 | Component | File | Description |
 |-----------|------|-------------|
 | `Dashboard` | `src/components/Dashboard.tsx` | Overview with stats, upcoming/completed tasks |
-| `TaskManager` | `src/components/TaskManager.tsx` | Full task list with filters, tabs (today/upcoming/overdue/all) |
-| `CalendarView` | `src/components/CalendarView.tsx` | Month/week/agenda views with task markers |
+| `TaskManager` | `src/components/TaskManager.tsx` | Task list with filters, tabs (today/upcoming/overdue/all, recurring-task-aware), and an "AI Quick Add" free-text input |
+| `CalendarView` | `src/components/CalendarView.tsx` | Month/week/agenda views, expands recurring tasks into real per-day occurrences |
 | `HabitsView` | `src/components/HabitsView.tsx` | Habit list with daily logging (done/skip/miss) |
-| `TagsView` | `src/components/TagsView.tsx` | Tag management with usage counts |
-| `ProgressView` | `src/components/ProgressView.tsx` | Analytics with charts and export options |
-| `Settings` | `src/components/Settings.tsx` | User preferences, theme toggle, data export |
+| `TagsView` | `src/components/TagsView.tsx` | Tag management with usage counts and a color picker |
+| `ProgressView` | `src/components/ProgressView.tsx` | Analytics with charts, export options, and an on-demand AI-generated weekly summary |
+| `Settings` | `src/components/Settings.tsx` | User preferences, theme toggle, data export (PDF/CSV/JSON) and import (JSON) |
 
 ### Modal Components
 
@@ -496,16 +527,21 @@ const {
   isLoading,      // Loading state
   error,          // Error state
   createTask,     // Create new task
+  createTaskAsync,// Create new task (awaitable - used by data import)
   updateTask,     // Update existing task
   deleteTask,     // Delete task
   isCreating,     // Creation in progress
   isUpdating,     // Update in progress
   isDeleting,     // Deletion in progress
-  getTodayTasks,  // Filter: today's tasks
-  getUpcomingTasks,   // Filter: next 7 days
-  getOverdueTasks     // Filter: past due
+  getOverdueTasks // Filter: past due
 } = useTasks();
 ```
+
+Today/Upcoming filtering used to live here as `getTodayTasks`/`getUpcomingTasks`, but both were
+naive `due_date` filters that never expanded recurring tasks. That logic now lives in
+`TaskManager.tsx` (`getTodayOccurrences`/`getUpcomingOccurrences`) and `CalendarView.tsx`,
+built on top of `src/utils/recurringTasks.ts` and `src/utils/taskOccurrences.ts` so completion
+is tracked per-occurrence via `task_instances`, not on the task record itself.
 
 ### `useHabits` (`src/hooks/useHabits.tsx`)
 
@@ -517,6 +553,7 @@ const {
   logs,           // Habit logs array
   isLoading,      // Loading state
   createHabit,    // Create new habit
+  createHabitAsync, // Create new habit (awaitable - used by data import)
   updateHabit,    // Update habit
   deleteHabit,    // Delete habit
   logHabit,       // Log habit status for today
@@ -537,6 +574,7 @@ const {
   tagsWithUsage,  // Tags with usage count
   isLoading,
   createTag,      // Create new tag
+  createTagAsync, // Create new tag (awaitable - used by data import)
   deleteTag,      // Delete tag (removes from items)
   isCreatingTag,
   isDeletingTag
@@ -567,15 +605,37 @@ interface UserSettings {
 
 ### `useTaskInstances` (`src/hooks/useTaskInstances.tsx`)
 
-Manages recurring task instances for accurate completion tracking.
+Manages recurring task instances for accurate per-occurrence completion tracking. Actively
+consumed by `CalendarView.tsx` and `TaskManager.tsx` via `src/utils/taskOccurrences.ts`.
 
 ```typescript
 const {
-  taskInstances,  // Task instance array
+  instances,      // Task instance array
   isLoading,
-  updateInstance, // Update instance status
+  updateInstance, // Create or update an instance's status for a given date
   isUpdating
 } = useTaskInstances();
+```
+
+### `useTaskParser` (`src/hooks/useTaskParser.tsx`)
+
+Calls the `parse-task` Edge Function to turn free text into structured task fields.
+
+```typescript
+const {
+  parseTask,      // (text: string) => Promise<ParsedTaskDraft>
+  isParsing
+} = useTaskParser();
+```
+
+### `useWeeklySummary` (`src/hooks/useWeeklySummary.tsx`)
+
+A `useQuery` wrapper around the `weekly-summary` Edge Function, gated behind an `enabled` flag
+so it only fires when the user clicks "Generate" (never automatically, to bound AI spend).
+
+```typescript
+const { data, isLoading, error } = useWeeklySummary(enabled);
+// data: { summary: string; stats: {...} } | undefined
 ```
 
 ---
@@ -679,6 +739,7 @@ All tables have RLS enabled with user-based isolation:
 | tags | Own only | Own only | Own only | Own only |
 | goals | Own only | Own only | Own only | Own only |
 | task_instances | Via task owner | Via task owner | Via task owner | Via task owner |
+| ai_usage | Own only | ❌ (function only) | ❌ (function only) | ❌ |
 
 ### Policy Pattern
 
@@ -743,14 +804,15 @@ $$ LANGUAGE plpgsql;
 ```
 
 **Task Filtering Logic:**
-- **Today**: `due_date === today`
-- **Upcoming**: Tasks from today (uncompleted) through next 7 days
-- **Overdue**: `due_date < today && status !== 'completed'`
+- **Today**: every occurrence (recurring or not) whose date falls today, via `generateRecurringInstances`
+- **Upcoming**: today's uncompleted occurrences + all of tomorrow's + the rest of the week's uncompleted occurrences
+- **Overdue**: `due_date < today && status !== 'completed'` - deliberately scoped to non-recurring tasks only (an "overdue" backlog of every unfinished day of a daily task isn't a meaningful concept this product needs; that's what Habits already covers)
+- **All**: task definitions, one row per task - not expanded into occurrences
 
 **Recurring Tasks:**
-- Types: `none`, `daily`, `weekly`, `monthly`, `custom`
+- Types: `none`, `daily`, `weekly`, `monthly`, `custom` (`custom` is in the schema's CHECK constraint but has no UI to configure it)
 - Interval: Number of periods between occurrences
-- Instance Tracking: Individual instances stored in `task_instances` table for accurate completion tracking
+- Instance Tracking: Wired into Calendar (month/week/agenda) and Task Manager (Today/Upcoming) - completing one day's occurrence of a recurring task only marks that date's `task_instances` row, not the whole series
 
 ### Habit Tracking
 
@@ -783,8 +845,14 @@ $$ LANGUAGE plpgsql;
 - Activity heatmap (84 days / 12 weeks)
 
 **Export Formats:**
-- **CSV**: Tasks + Habits + Logs in structured format
+- **CSV**: Tasks + Habits + Logs in structured format (human/spreadsheet-oriented, RFC 4180 escaped - not re-importable)
 - **PDF**: Summary report with metrics
+- **JSON**: Tasks + Habits + Tags, round-trippable - export from one account and Import (below) into the same or a different one. Habit completion logs are deliberately excluded from the JSON format.
+
+**Data Import:**
+- Accepts a Monotask JSON export (`src/utils/dataPortability.ts` validates the shape and gives a specific reason on malformed input)
+- Tags are resolved and created by name, not id, so a backup restores correctly into an account with different tag ids
+- Export/Import buttons are disabled until the tasks/habits/tags queries have finished loading, to avoid running against stale or empty data
 
 ### Theme System
 
@@ -800,16 +868,87 @@ if (theme === 'dark') {
 
 ---
 
+## AI Features
+
+Both features call Claude Haiku 4.5 through a Supabase Edge Function - the Anthropic API key
+lives only in the Edge Function's environment, never in client code or a `VITE_`-prefixed var.
+
+### AI Quick Add
+
+`supabase/functions/parse-task/index.ts` turns free text ("lunch with Sam tomorrow 1pm, high
+priority") into structured task fields via Anthropic's structured-output API (a JSON Schema on
+`output_config.format`, not the zod helper - that hit a module-resolution hazard under Deno).
+Every field is re-validated server-side before use; the frontend never inserts the result
+directly, it pre-fills the existing `TaskModal` for the user to review and confirm.
+
+### AI Weekly Summary
+
+`supabase/functions/weekly-summary/index.ts` computes the week's stats (completion rate, overdue
+count, top tag, habit rate) server-side from RLS-scoped queries, then asks Claude only to phrase
+those already-correct numbers into 2-3 sentences - the model can't misreport a number, only
+phrase it awkwardly. Triggered on demand from Progress & Analytics, never automatically.
+
+### Guardrails
+
+- **Rate limiting**: `check_and_increment_ai_usage(feature, daily_limit)`, a SECURITY DEFINER
+  Postgres function, atomically caps calls per user per day (5/day summary, 30/day parse) before
+  either function calls the Anthropic API.
+- **Auth**: both functions run with the caller's JWT and call `supabase.auth.getUser()` themselves
+  - `verify_jwt = false` in `supabase/config.toml` only disables the *platform-level* gate (which
+  was blocking CORS preflight requests), not authentication itself.
+- **Eval suite**: `scripts/evals/parse-task.eval.ts` (`npm run eval:parse-task`) runs fixed
+  test cases against the live parsing prompt/schema as a regression check when the prompt changes.
+
+---
+
+## Testing & CI/CD
+
+### Unit Tests (Vitest)
+
+`npm test` runs unit tests for the utility modules with the most logic: `recurringTasks`
+(occurrence expansion), `taskOccurrences` (completion/toggle routing), `csv` (RFC 4180 escaping),
+and `dataPortability` (import validation, tag resolution). Config: `vitest.config.ts`.
+
+### End-to-End Smoke Test (Playwright)
+
+`npm run test:e2e` runs one test (`e2e/smoke.spec.ts`) covering the golden path against real
+Supabase auth (a throwaway guest user per run, not mocked): landing → guest sign-in → app shell
+→ create a task → complete it. Config: `playwright.config.ts`.
+
+### CI Pipeline
+
+`.github/workflows/ci.yml` runs on every push/PR to `main`: typecheck (both `tsconfig.app.json`
+and `tsconfig.node.json`), lint, unit tests, build, then installs Chromium and runs the E2E test
+against a real dev server using the same Supabase secrets the build step uses. The Playwright
+report uploads as an artifact on failure.
+
+`main` has branch protection requiring the CI check to pass before merge, with no exception for
+admins - direct pushes are rejected the same as anyone else's. Vercel auto-deploys on every merge
+to `main` (production) and every branch/PR push (preview), so by the time something reaches
+production it has already passed CI.
+
+---
+
 ## Configuration & Dependencies
 
 ### Environment Variables
 
-The app uses Supabase client configuration:
+The app reads Supabase config from Vite env vars (not hardcoded):
 ```typescript
 // src/integrations/supabase/client.ts
-const supabaseUrl = 'https://[project-ref].supabase.co';
-const supabaseKey = '[anon-key]';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 ```
+Required locally in `.env` (see `.env.example`): `VITE_SUPABASE_URL`,
+`VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`. The same three are set as GitHub
+Actions secrets (for CI) and as Vercel environment variables (for deploys) - all three places
+need to agree, since nothing here is a secret in the traditional sense (the anon/publishable key
+is meant to be public; RLS is the real access control), but a missing value crashes the app at
+runtime rather than failing the build.
+
+The AI Edge Functions additionally need `ANTHROPIC_API_KEY` set as a Supabase secret
+(`supabase secrets set ANTHROPIC_API_KEY=...`) - this one **is** a real secret and must never be
+a `VITE_`-prefixed var or appear in client code.
 
 ### Key Dependencies
 
@@ -818,13 +957,18 @@ const supabaseKey = '[anon-key]';
 | `react` | ^18.3.1 | UI framework |
 | `@tanstack/react-query` | ^5.56.2 | Data fetching/caching |
 | `@supabase/supabase-js` | ^2.50.0 | Backend client |
-| `react-router-dom` | ^6.26.2 | Routing |
+| `react-router-dom` | ^7.18.2 | Routing |
 | `recharts` | ^2.12.7 | Charts/visualizations |
 | `date-fns` | ^3.6.0 | Date utilities |
 | `sonner` | ^1.5.0 | Toast notifications |
-| `jspdf` | ^3.0.1 | PDF generation |
+| `jspdf` | ^4.2.1 | PDF generation |
+| `zod` | ^4.4.3 | Schema validation |
 | `tailwindcss` | - | Styling |
 | `shadcn/ui` | - | UI component library |
+| `@anthropic-ai/sdk` (dev) | ^0.122.0 | Used inside Edge Functions (via esm.sh, not this npm copy) and the eval/seed scripts |
+| `vitest` (dev) | ^4.1.11 | Unit test runner |
+| `@playwright/test` (dev) | ^1.62.1 | E2E test runner |
+| `tsx` (dev) | ^4.19.0 | Runs the eval and demo-data-seed scripts |
 
 ### Supabase Configuration
 
@@ -877,11 +1021,15 @@ src/
 │   ├── useTags.tsx         # Tag CRUD hook
 │   ├── useSettings.tsx     # Settings hook
 │   ├── useTaskInstances.tsx # Task instances hook
+│   ├── useTaskParser.tsx   # Calls the parse-task Edge Function (AI Quick Add)
+│   ├── useWeeklySummary.tsx # Calls the weekly-summary Edge Function
 │   ├── use-mobile.tsx      # Mobile detection
 │   └── use-toast.ts        # Toast notifications
 │
 ├── pages/
 │   ├── Index.tsx           # Main app page
+│   ├── Landing.tsx         # Public landing page
+│   ├── Auth.tsx             # Auth route
 │   └── NotFound.tsx        # 404 page
 │
 ├── integrations/
@@ -891,14 +1039,33 @@ src/
 │
 ├── utils/
 │   ├── pdfExport.ts        # PDF generation utility
-│   └── recurringTasks.ts   # Recurring task helpers
+│   ├── recurringTasks.ts   # Recurring task instance-expansion helpers
+│   ├── taskOccurrences.ts  # Occurrence completion/toggle logic, shared by Calendar/TaskManager
+│   ├── csv.ts               # RFC 4180 CSV field escaping
+│   └── dataPortability.ts  # JSON export/import schema + validation
+│
+├── *.test.ts                # Vitest unit tests, colocated with the module they cover
 │
 └── lib/
     └── utils.ts            # General utilities (cn, etc.)
 
 supabase/
-├── config.toml             # Supabase configuration
-└── migrations/             # Database migrations
+├── config.toml             # Supabase configuration (incl. verify_jwt=false for the two Edge Functions)
+├── migrations/             # Database migrations
+└── functions/
+    ├── _shared/cors.ts      # Shared CORS headers
+    ├── parse-task/          # AI Quick Add Edge Function
+    └── weekly-summary/      # AI Weekly Summary Edge Function
+
+e2e/
+└── smoke.spec.ts           # Playwright E2E smoke test
+
+scripts/
+├── evals/parse-task.eval.ts # Regression eval for the parse-task prompt/schema
+└── seed-demo-data.ts        # Seeds two demo accounts (npm run seed:demo)
+
+.github/workflows/
+└── ci.yml                  # Typecheck, lint, unit tests, build, E2E on every push/PR to main
 
 public/
 ├── favicon.ico
@@ -917,7 +1084,8 @@ public/
 5. **Guest Data**: Anonymous user data persists only while session is active
 6. **Default Tags**: Four tags are created automatically for new users
 7. **No Notifications**: Push notifications are not implemented (setting exists for future)
-8. **Import Placeholder**: Data import UI exists but functionality is not complete
+8. **AI Rate Limits**: AI Quick Add and AI Weekly Summary are capped at 30 and 5 calls/user/day respectively, enforced server-side - hitting the cap surfaces as an error toast, not a silent failure
+9. **Unimplemented Settings**: `timeFormat`, `timezone`, `font`, `notifications`, `autoBackup` exist in the settings model but only theme (dark/light) is exposed in the Settings UI
 
 ---
 
@@ -925,8 +1093,14 @@ public/
 
 1. Clone repository
 2. Install dependencies: `npm install`
-3. Configure Supabase credentials
+3. Copy `.env.example` to `.env` and fill in `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`
 4. Enable Anonymous Sign-ins in Supabase Auth settings
 5. Run development server: `npm run dev`
+6. Run unit tests: `npm test` · Run the E2E smoke test: `npm run test:e2e`
+
+The AI features (Quick Add, Weekly Summary) require the two Edge Functions to be deployed with
+an `ANTHROPIC_API_KEY` secret set on the Supabase project - everything else runs without it.
+To try the app pre-populated with data instead of starting from an empty account, see
+`npm run seed:demo` (requires the Supabase `service_role` key, never committed).
 
 ---
