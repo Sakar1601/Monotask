@@ -59,7 +59,7 @@ const Dashboard: React.FC = () => {
         <div className="bg-white dark:bg-gray-900 p-6 border border-gray-200 dark:border-gray-800 rounded-lg transition-colors">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Tasks Today</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Completed Today</p>
               <p className="text-2xl font-bold text-black dark:text-white">{completedTasksToday}</p>
             </div>
             <CheckCircle className="w-8 h-8 text-gray-400 dark:text-gray-500" />
