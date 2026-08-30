@@ -313,13 +313,13 @@ const Landing = () => {
             Simple, distraction-free, and beautifully crafted.
           </motion.p>
           
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4"
           >
-            <Button 
+            <Button
               size="lg"
               onClick={scrollToFeatures}
               className="bg-foreground text-background hover:bg-foreground/90 px-8 py-6 text-lg group shadow-xl shadow-foreground/20"
@@ -327,7 +327,7 @@ const Landing = () => {
               Start for Free
               <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" />
             </Button>
-            <Button 
+            <Button
               variant="outline"
               size="lg"
               onClick={() => navigate('/auth')}
@@ -336,6 +336,20 @@ const Landing = () => {
               Sign In
             </Button>
           </motion.div>
+
+          <motion.button
+            onClick={scrollToFeatures}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.75 }}
+            className="mt-8 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground/5 border border-border hover:border-foreground/20 hover:bg-foreground/10 transition-colors group"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-foreground" />
+            <span className="text-sm text-muted-foreground">
+              New: <span className="text-foreground font-medium">AI Quick Add</span> &amp; <span className="text-foreground font-medium">AI Weekly Summary</span>
+            </span>
+            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </motion.button>
         </div>
 
         {/* Scroll Indicator */}
