@@ -45,7 +45,10 @@ Deno.serve(async (req: Request) => {
 
     if (stateRow.provider !== "google") return appRedirect(req, "error");
 
-    const redirectUri = `${supabaseUrl}/functions/v1/integration-oauth-callback`;
+    // Must be byte-identical to the redirect_uri integration-oauth-start sent
+    // Google in the original authorize request - see OAUTH_CALLBACK_URL's
+    // doc comment there for why SUPABASE_URL alone isn't safe to use here.
+    const redirectUri = Deno.env.get("OAUTH_CALLBACK_URL") ?? `${supabaseUrl}/functions/v1/integration-oauth-callback`;
     const tokens = await googleProvider.exchangeCode(code, redirectUri);
 
     const { error: upsertError } = await adminClient.from("integration_connections").upsert(
