@@ -21,6 +21,10 @@ export interface Task {
   updated_at: string;
   user_id: string;
   tags?: { name: string; color: string };
+  google_connection_id?: string | null;
+  google_task_id?: string | null;
+  synced_at?: string | null;
+  sync_error?: string | null;
 }
 
 // Helper function to format date for local timezone
