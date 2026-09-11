@@ -6,6 +6,18 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { googleProvider } from "../_shared/integrations/google.ts";
 
+// REQUIRED SECRET: APP_ORIGIN
+//
+// Set this in EVERY deployed environment to the origin of the Monotask web
+// app, with no trailing slash - e.g.
+//
+//   supabase secrets set APP_ORIGIN=https://yourapp.com
+//
+// It is where the user is sent after Google OAuth consent. If it is unset,
+// the fallback below uses this Edge Function's own origin, so a successful
+// connect redirects to https://<project>.supabase.co/app - a 404. The
+// fallback exists only so quick local testing works without configuration,
+// where landing on a 404 after consent is harmless.
 function appRedirect(req: Request, status: "connected" | "error"): Response {
   const origin = Deno.env.get("APP_ORIGIN") ?? new URL(req.url).origin;
   return Response.redirect(`${origin}/app?integration=${status}`, 302);

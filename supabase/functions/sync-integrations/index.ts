@@ -37,6 +37,9 @@ async function ensureFreshToken(
 }
 
 async function syncConnection(adminClient: ReturnType<typeof createClient>, connection: Connection) {
+  // Stamped onto every row this run touches, and used as the cutoff for
+  // deleting rows the run did NOT touch (i.e. items no longer in Google).
+  const syncStartedAt = new Date().toISOString();
   try {
     const accessToken = await ensureFreshToken(adminClient, connection);
     const now = new Date();
@@ -48,8 +51,8 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
       googleProvider.fetchTasks(accessToken),
     ]);
 
-    await upsertEvents(adminClient, connection.id, events);
-    await upsertTasks(adminClient, connection.id, tasks);
+    await upsertEvents(adminClient, connection.id, events, syncStartedAt);
+    await upsertTasks(adminClient, connection.id, tasks, syncStartedAt);
 
     await adminClient
       .from("integration_connections")
@@ -59,13 +62,20 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
     console.error(`sync-integrations: connection ${connection.id} failed:`, error);
     await adminClient
       .from("integration_connections")
-      .update({ status: "error", last_error: String(error) })
+      .update({
+        status: "error",
+        last_error: error instanceof Error ? error.message : JSON.stringify(error),
+      })
       .eq("id", connection.id);
   }
 }
 
-async function upsertEvents(adminClient: ReturnType<typeof createClient>, connectionId: string, events: ExternalEvent[]) {
-  const seenIds = events.map((e) => e.externalId);
+async function upsertEvents(
+  adminClient: ReturnType<typeof createClient>,
+  connectionId: string,
+  events: ExternalEvent[],
+  syncStartedAt: string,
+) {
   if (events.length > 0) {
     const { error } = await adminClient.from("external_events").upsert(
       events.map((e) => ({
@@ -76,21 +86,32 @@ async function upsertEvents(adminClient: ReturnType<typeof createClient>, connec
         end_time: e.endTime,
         meeting_url: e.meetingUrl,
         raw_payload: e.rawPayload,
-        updated_at: new Date().toISOString(),
+        updated_at: syncStartedAt,
       })),
       { onConflict: "connection_id,external_id" },
     );
     if (error) throw error;
   }
-  // Delete events for this connection that are no longer in the fetched window.
-  let deleteQuery = adminClient.from("external_events").delete().eq("connection_id", connectionId);
-  if (seenIds.length > 0) deleteQuery = deleteQuery.not("external_id", "in", `(${seenIds.map((id) => `"${id}"`).join(",")})`);
-  const { error: deleteError } = await deleteQuery;
+  // Delete events for this connection that are no longer in the fetched
+  // window. Every row the upsert above touched now carries updated_at =
+  // syncStartedAt, so anything older is stale. Using the timestamp instead of
+  // a NOT IN (...) list of external ids keeps the query a fixed small size -
+  // a 250-event list produced an 8-9KB URL that could 414. If `events` is
+  // empty nothing was stamped, so this correctly clears the connection.
+  const { error: deleteError } = await adminClient
+    .from("external_events")
+    .delete()
+    .eq("connection_id", connectionId)
+    .lt("updated_at", syncStartedAt);
   if (deleteError) throw deleteError;
 }
 
-async function upsertTasks(adminClient: ReturnType<typeof createClient>, connectionId: string, tasks: ExternalTask[]) {
-  const seenIds = tasks.map((t) => t.externalId);
+async function upsertTasks(
+  adminClient: ReturnType<typeof createClient>,
+  connectionId: string,
+  tasks: ExternalTask[],
+  syncStartedAt: string,
+) {
   if (tasks.length > 0) {
     const { error } = await adminClient.from("external_tasks").upsert(
       tasks.map((t) => ({
@@ -101,15 +122,18 @@ async function upsertTasks(adminClient: ReturnType<typeof createClient>, connect
         status: t.status,
         source_url: t.sourceUrl,
         raw_payload: t.rawPayload,
-        updated_at: new Date().toISOString(),
+        updated_at: syncStartedAt,
       })),
       { onConflict: "connection_id,external_id" },
     );
     if (error) throw error;
   }
-  let deleteQuery = adminClient.from("external_tasks").delete().eq("connection_id", connectionId);
-  if (seenIds.length > 0) deleteQuery = deleteQuery.not("external_id", "in", `(${seenIds.map((id) => `"${id}"`).join(",")})`);
-  const { error: deleteError } = await deleteQuery;
+  // Same timestamp-cutoff stale delete as upsertEvents - see the note there.
+  const { error: deleteError } = await adminClient
+    .from("external_tasks")
+    .delete()
+    .eq("connection_id", connectionId)
+    .lt("updated_at", syncStartedAt);
   if (deleteError) throw deleteError;
 }
 
