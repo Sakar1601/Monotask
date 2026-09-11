@@ -15,7 +15,24 @@ function tokenSetFromResponse(json: Record<string, unknown>, fallbackRefreshToke
   };
 }
 
-export function mapGoogleEvent(item: Record<string, any>): ExternalEvent | null {
+interface GoogleCalendarEventPayload {
+  id?: string;
+  summary?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  hangoutLink?: string;
+  htmlLink?: string;
+}
+
+interface GoogleTaskPayload {
+  id?: string;
+  title?: string;
+  due?: string;
+  status?: string;
+  webViewLink?: string;
+}
+
+export function mapGoogleEvent(item: GoogleCalendarEventPayload): ExternalEvent | null {
   const start = item.start?.dateTime ?? (item.start?.date ? `${item.start.date}T00:00:00Z` : null);
   const end = item.end?.dateTime ?? (item.end?.date ? `${item.end.date}T00:00:00Z` : null);
   if (!item.id || !start) return null;
@@ -29,7 +46,7 @@ export function mapGoogleEvent(item: Record<string, any>): ExternalEvent | null 
   };
 }
 
-export function mapGoogleTask(item: Record<string, any>): ExternalTask | null {
+export function mapGoogleTask(item: GoogleTaskPayload): ExternalTask | null {
   if (!item.id) return null;
   return {
     externalId: item.id,
