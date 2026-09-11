@@ -9,6 +9,7 @@ import TopBar from "@/components/TopBar";
 import Dashboard from "@/components/Dashboard";
 import TaskManager from "@/components/TaskManager";
 import CalendarView from "@/components/CalendarView";
+import EventsView from "@/components/EventsView";
 import HabitsView from "@/components/HabitsView";
 import TagsView from "@/components/TagsView";
 import ProgressView from "@/components/ProgressView";
@@ -79,6 +80,8 @@ const Index = () => {
         return <TaskManager />;
       case 'calendar':
         return <CalendarView />;
+      case 'events':
+        return <EventsView />;
       case 'habits':
         return <HabitsView />;
       case 'tags':
