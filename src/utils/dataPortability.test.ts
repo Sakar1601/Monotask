@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, test, expect } from 'vitest';
 import { Task } from '@/hooks/useTasks';
 import { Habit } from '@/hooks/useHabits';
 import { Tag } from '@/hooks/useTags';
@@ -44,6 +44,24 @@ describe('buildExportData', () => {
     const result = buildExportData([], habits, tags);
     expect(result.habits[0].tag_name).toBe('Work');
   });
+});
+
+test('buildExportData tags each task and event with its source', () => {
+  const tasks = [
+    { id: '1', title: 'Native task', description: null, due_date: null, due_time: null, priority: 'low', status: 'pending', repeat_type: 'none', repeat_interval: 1, tag_id: null, created_at: '', updated_at: '', user_id: 'u', google_connection_id: null } as any,
+    { id: '2', title: 'Synced task', description: null, due_date: null, due_time: null, priority: 'medium', status: 'pending', repeat_type: 'none', repeat_interval: 1, tag_id: null, created_at: '', updated_at: '', user_id: 'u', google_connection_id: 'conn-1' } as any,
+  ];
+  const events = [
+    { id: '3', title: 'Native event', description: null, start_time: '2026-01-01T00:00:00Z', end_time: null, location: null, meeting_url: null, tag_id: null, created_at: '', updated_at: '', user_id: 'u', google_connection_id: null } as any,
+    { id: '4', title: 'Synced event', description: null, start_time: '2026-01-01T00:00:00Z', end_time: null, location: null, meeting_url: null, tag_id: null, created_at: '', updated_at: '', user_id: 'u', google_connection_id: 'conn-1' } as any,
+  ];
+
+  const data = buildExportData(tasks, [], [], events);
+
+  expect(data.tasks.find((t) => t.title === 'Native task')?.source).toBe('monotask');
+  expect(data.tasks.find((t) => t.title === 'Synced task')?.source).toBe('google');
+  expect(data.events?.find((e) => e.title === 'Native event')?.source).toBe('monotask');
+  expect(data.events?.find((e) => e.title === 'Synced event')?.source).toBe('google');
 });
 
 describe('parseImportFile', () => {

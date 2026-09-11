@@ -6,6 +6,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useTasks } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
 import { useTags } from '@/hooks/useTags';
+import { useEvents } from '@/hooks/useEvents';
 import { useAuth } from '@/hooks/useAuth';
 import { exportToPDF } from '@/utils/pdfExport';
 import { toCsvRow } from '@/utils/csv';
@@ -19,6 +20,7 @@ const Settings: React.FC = () => {
   const { tasks, createTaskAsync, isLoading: tasksLoading } = useTasks();
   const { habits, logs, createHabitAsync, isLoading: habitsLoading } = useHabits();
   const { tags, createTagAsync, isLoading: tagsLoading } = useTags();
+  const { events, isLoading: eventsLoading } = useEvents();
   const { user, isAnonymous, signOut } = useAuth();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -26,7 +28,7 @@ const Settings: React.FC = () => {
   // finished loading yet - that silently produces an empty export or,
   // during import, treats every one of the account's own default tags as
   // "new" and drops the tag off any imported task/habit that used one.
-  const dataReady = !tasksLoading && !habitsLoading && !tagsLoading;
+  const dataReady = !tasksLoading && !habitsLoading && !tagsLoading && !eventsLoading;
 
   const handleToggleDarkMode = () => {
     const newTheme = settings?.theme === 'dark' ? 'light' : 'dark';
@@ -35,7 +37,7 @@ const Settings: React.FC = () => {
 
   const handleExportPDF = async () => {
     try {
-      await exportToPDF(tasks, habits, logs);
+      await exportToPDF(tasks, habits, logs, events);
     } catch (error) {
       console.error('Error exporting PDF:', error);
       toast.error('Failed to export PDF. Please try again.');
@@ -46,7 +48,7 @@ const Settings: React.FC = () => {
     const lines: string[] = [];
 
     lines.push('TASKS');
-    lines.push(toCsvRow(['Title', 'Description', 'Status', 'Priority', 'Due Date', 'Due Time', 'Created At']));
+    lines.push(toCsvRow(['Title', 'Description', 'Status', 'Priority', 'Due Date', 'Due Time', 'Source', 'Created At']));
     tasks.forEach(task => {
       lines.push(toCsvRow([
         task.title,
@@ -55,6 +57,7 @@ const Settings: React.FC = () => {
         task.priority || '',
         task.due_date || '',
         task.due_time || '',
+        task.google_connection_id ? 'Google' : 'Monotask',
         task.created_at
       ]));
     });
@@ -84,6 +87,22 @@ const Settings: React.FC = () => {
       ]));
     });
 
+    lines.push('');
+    lines.push('EVENTS');
+    lines.push(toCsvRow(['Title', 'Description', 'Start', 'End', 'Location', 'Meeting URL', 'Source', 'Created At']));
+    events.forEach(event => {
+      lines.push(toCsvRow([
+        event.title,
+        event.description || '',
+        event.start_time,
+        event.end_time || '',
+        event.location || '',
+        event.meeting_url || '',
+        event.google_connection_id ? 'Google' : 'Monotask',
+        event.created_at
+      ]));
+    });
+
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -94,7 +113,7 @@ const Settings: React.FC = () => {
   };
 
   const handleExportJSON = () => {
-    const data = buildExportData(tasks, habits, tags);
+    const data = buildExportData(tasks, habits, tags, events);
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
