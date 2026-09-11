@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 export interface IntegrationConnection {
   id: string;
   provider: 'google';
-  status: 'connected' | 'expired' | 'error' | 'disconnected';
+  status: 'connected' | 'expired' | 'error' | 'disconnected' | 'needs_reconnect';
   calendar_sync_enabled: boolean;
   message_scan_enabled: boolean;
   last_synced_at: string | null;

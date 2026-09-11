@@ -17,6 +17,18 @@ const IntegrationsSettings: React.FC = () => {
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading...</p>
+      ) : googleConnection?.status === 'needs_reconnect' ? (
+        <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-800 rounded-md">
+          <div>
+            <h3 className="font-medium text-foreground">Google</h3>
+            <p className="text-sm text-amber-800 dark:text-amber-300">
+              Google needs new permissions for two-way sync.
+            </p>
+          </div>
+          <Button size="sm" onClick={connectGoogle} className="bg-amber-600 hover:bg-amber-700 text-white">
+            Reconnect
+          </Button>
+        </div>
       ) : googleConnection ? (
         <div className="flex items-center justify-between">
           <div>
