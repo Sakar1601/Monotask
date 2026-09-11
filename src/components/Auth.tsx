@@ -19,8 +19,9 @@ const Auth: React.FC<AuthProps> = ({ defaultMode = 'signin' }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signIn, signUp, signInAnonymously } = useAuth();
+  const { signIn, signUp, signInAnonymously, signInWithGoogle } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,6 +113,27 @@ const Auth: React.FC<AuthProps> = ({ defaultMode = 'signin' }) => {
                 <span className="bg-card px-2 text-muted-foreground">Or</span>
               </div>
             </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full mt-4"
+              disabled={googleLoading}
+              onClick={async () => {
+                setGoogleLoading(true);
+                setError(null);
+                try {
+                  const { error } = await signInWithGoogle();
+                  if (error) setError(error.message);
+                } catch {
+                  setError('Failed to sign in with Google');
+                } finally {
+                  setGoogleLoading(false);
+                }
+              }}
+            >
+              {googleLoading ? 'Redirecting...' : 'Continue with Google'}
+            </Button>
 
             <Button
               type="button"
