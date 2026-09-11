@@ -1,5 +1,14 @@
 project_id = "masofmjpnpnxjooqdajl"
 
+# Without this, GoTrue falls back to its built-in default site_url
+# (http://127.0.0.1:3000), which nothing listens on for this project's dev
+# server (Vite runs on 8080, or 8081 if 8080 is taken) - causing every
+# OAuth redirect (sign-in and the Connect Google flow) to land on a dead
+# port instead of the app.
+[auth]
+site_url = "http://localhost:8080"
+additional_redirect_urls = ["http://localhost:8080", "http://localhost:8081", "http://127.0.0.1:8080", "http://127.0.0.1:8081"]
+
 # Platform-level JWT verification runs even on CORS preflight (OPTIONS)
 # requests, which never carry an Authorization header - that blocks the
 # preflight before it reaches our code. Both functions do their own
