@@ -22,8 +22,14 @@ const CalendarView: React.FC = () => {
   const { events: externalEvents } = useExternalEvents();
   const isLoading = tasksLoading || instancesLoading;
 
+  // start_time is a UTC ISO timestamp from PostgREST, but dateString is built
+  // from LOCAL date components - compare on the event's LOCAL date so a late
+  // evening event in a UTC-negative timezone doesn't land on the next day.
   const getExternalEventsForDate = (dateString: string) =>
-    externalEvents.filter((event) => event.start_time.slice(0, 10) === dateString);
+    externalEvents.filter((event) => {
+      const eventDate = new Date(event.start_time);
+      return formatDateForComparison(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()) === dateString;
+    });
 
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
