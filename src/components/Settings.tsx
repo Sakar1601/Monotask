@@ -11,6 +11,7 @@ import { exportToPDF } from '@/utils/pdfExport';
 import { toCsvRow } from '@/utils/csv';
 import { buildExportData, parseImportFile, MonotaskExport } from '@/utils/dataPortability';
 import UpgradeAccountModal from './UpgradeAccountModal';
+import IntegrationsSettings from './IntegrationsSettings';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Settings: React.FC = () => {
@@ -276,6 +277,9 @@ const Settings: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Integrations */}
+      <IntegrationsSettings />
 
       {/* Data Management */}
       <div className="bg-card border border-border rounded-lg p-6">
