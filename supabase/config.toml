@@ -25,3 +25,12 @@ verify_jwt = false
 
 [functions.sync-integrations]
 verify_jwt = false
+
+# Google as a Supabase Auth sign-in provider (separate from the
+# GOOGLE_CLIENT_ID/SECRET function secrets used by the "Connect Google"
+# calendar/task-sync flow - Auth needs its own OAuth client credentials,
+# read from env vars here rather than hardcoded).
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
