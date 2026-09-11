@@ -9,3 +9,10 @@ verify_jwt = false
 
 [functions.parse-task]
 verify_jwt = false
+
+# Hit directly by Google's browser redirect after OAuth consent, which
+# carries no JWT at all - the platform-level JWT gate must be off. There is
+# no user auth check to replace it with; the function authenticates the
+# request via the oauth_states "state" row instead.
+[functions.integration-oauth-callback]
+verify_jwt = false
