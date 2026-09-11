@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
 import Sidebar from "@/components/Sidebar";
@@ -17,6 +18,7 @@ const Index = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const { settings } = useSettings();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [currentView, setCurrentView] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -34,6 +36,20 @@ const Index = () => {
       navigate('/');
     }
   }, [user, loading, navigate]);
+
+  // The OAuth callback function redirects back here with ?integration=connected
+  // or ?integration=error. Surface the outcome, then strip the param so a
+  // refresh doesn't re-fire the toast.
+  useEffect(() => {
+    const integration = searchParams.get('integration');
+    if (!integration) return;
+    if (integration === 'connected') {
+      toast.success('Google connected!');
+    } else {
+      toast.error('Failed to connect Google. Please try again.');
+    }
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const handleQuickAdd = () => {
     // Quick add functionality - could open a task modal or navigate to tasks

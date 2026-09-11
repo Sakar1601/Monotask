@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useTaskInstances } from '@/hooks/useTaskInstances';
+import { useExternalEvents } from '@/hooks/useExternalEvents';
 import { getTasksForDate as getOccurrencesForDate, generateRecurringInstances, RecurringTaskInstance } from '@/utils/recurringTasks';
 import { isOccurrenceCompleted, getOccurrenceDate, toggleOccurrenceComplete } from '@/utils/taskOccurrences';
 import TaskModal from './TaskModal';
@@ -18,7 +19,17 @@ const CalendarView: React.FC = () => {
 
   const { tasks, isLoading: tasksLoading, updateTask } = useTasks();
   const { instances, isLoading: instancesLoading, updateInstance } = useTaskInstances();
+  const { events: externalEvents } = useExternalEvents();
   const isLoading = tasksLoading || instancesLoading;
+
+  // start_time is a UTC ISO timestamp from PostgREST, but dateString is built
+  // from LOCAL date components - compare on the event's LOCAL date so a late
+  // evening event in a UTC-negative timezone doesn't land on the next day.
+  const getExternalEventsForDate = (dateString: string) =>
+    externalEvents.filter((event) => {
+      const eventDate = new Date(event.start_time);
+      return formatDateForComparison(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()) === dateString;
+    });
 
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -125,6 +136,19 @@ const CalendarView: React.FC = () => {
                 )}
               </div>
             ))}
+            {getExternalEventsForDate(dateString).slice(0, 2).map((event) => (
+              <a
+                key={event.id}
+                href={event.meeting_url ?? undefined}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="block text-xs p-1 rounded truncate bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200"
+                title={`${event.title} (Google Calendar)`}
+              >
+                {event.title}
+              </a>
+            ))}
           </div>
         </button>
       );
@@ -177,6 +201,19 @@ const CalendarView: React.FC = () => {
               >
                 {task.title}
               </div>
+            ))}
+            {getExternalEventsForDate(dateString).slice(0, 2).map((event) => (
+              <a
+                key={event.id}
+                href={event.meeting_url ?? undefined}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="block text-xs p-1 rounded truncate bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200"
+                title={`${event.title} (Google Calendar)`}
+              >
+                {event.title}
+              </a>
             ))}
             {dayTasks.length > 3 && (
               <div className="text-xs text-gray-500 dark:text-gray-400">

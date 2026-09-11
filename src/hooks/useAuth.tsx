@@ -11,6 +11,7 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   signInAnonymously: () => Promise<{ error: AuthError | null }>;
+  signInWithGoogle: () => Promise<{ error: AuthError | null }>;
   linkEmailPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   isAnonymous: boolean;
 }
@@ -79,6 +80,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { error };
   };
 
+  const signInWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/app` },
+    });
+    return { error };
+  };
+
   const linkEmailPassword = async (email: string, password: string) => {
     const { error } = await supabase.auth.updateUser({
       email,
@@ -97,6 +106,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signUp,
     signOut,
     signInAnonymously,
+    signInWithGoogle,
     linkEmailPassword,
     isAnonymous,
   };

@@ -7,13 +7,165 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "12.2.12 (cd3cf9e)"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          call_count: number
+          feature: string
+          updated_at: string
+          usage_date: string
+          user_id: string
+        }
+        Insert: {
+          call_count?: number
+          feature: string
+          updated_at?: string
+          usage_date?: string
+          user_id: string
+        }
+        Update: {
+          call_count?: number
+          feature?: string
+          updated_at?: string
+          usage_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      external_events: {
+        Row: {
+          connection_id: string
+          created_at: string
+          end_time: string | null
+          external_id: string
+          id: string
+          meeting_url: string | null
+          raw_payload: Json | null
+          start_time: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          end_time?: string | null
+          external_id: string
+          id?: string
+          meeting_url?: string | null
+          raw_payload?: Json | null
+          start_time: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          end_time?: string | null
+          external_id?: string
+          id?: string
+          meeting_url?: string | null
+          raw_payload?: Json | null
+          start_time?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_events_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_events_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_tasks: {
+        Row: {
+          connection_id: string
+          created_at: string
+          due_date: string | null
+          external_id: string
+          id: string
+          raw_payload: Json | null
+          source_url: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          due_date?: string | null
+          external_id: string
+          id?: string
+          raw_payload?: Json | null
+          source_url?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          due_date?: string | null
+          external_id?: string
+          id?: string
+          raw_payload?: Json | null
+          source_url?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_tasks_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_tasks_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       goals: {
         Row: {
           created_at: string
@@ -106,6 +258,60 @@ export type Database = {
           },
         ]
       }
+      integration_connections: {
+        Row: {
+          access_token: string
+          calendar_sync_enabled: boolean
+          created_at: string
+          expires_at: string
+          id: string
+          last_error: string | null
+          last_scanned_at: string | null
+          last_synced_at: string | null
+          message_scan_enabled: boolean
+          provider: string
+          refresh_token: string
+          scope: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          calendar_sync_enabled?: boolean
+          created_at?: string
+          expires_at: string
+          id?: string
+          last_error?: string | null
+          last_scanned_at?: string | null
+          last_synced_at?: string | null
+          message_scan_enabled?: boolean
+          provider: string
+          refresh_token: string
+          scope?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          calendar_sync_enabled?: boolean
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_error?: string | null
+          last_scanned_at?: string | null
+          last_synced_at?: string | null
+          message_scan_enabled?: boolean
+          provider?: string
+          refresh_token?: string
+          scope?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       logs: {
         Row: {
           created_at: string
@@ -153,6 +359,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      oauth_states: {
+        Row: {
+          created_at: string
+          provider: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          provider: string
+          state: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          provider?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -298,10 +525,60 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      integration_connections_view: {
+        Row: {
+          calendar_sync_enabled: boolean | null
+          created_at: string | null
+          expires_at: string | null
+          id: string | null
+          last_error: string | null
+          last_scanned_at: string | null
+          last_synced_at: string | null
+          message_scan_enabled: boolean | null
+          provider: string | null
+          scope: string | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          calendar_sync_enabled?: boolean | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          last_error?: string | null
+          last_scanned_at?: string | null
+          last_synced_at?: string | null
+          message_scan_enabled?: boolean | null
+          provider?: string | null
+          scope?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          calendar_sync_enabled?: boolean | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string | null
+          last_error?: string | null
+          last_scanned_at?: string | null
+          last_synced_at?: string | null
+          message_scan_enabled?: boolean | null
+          provider?: string | null
+          scope?: string | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      check_and_increment_ai_usage: {
+        Args: { p_daily_limit: number; p_feature: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
@@ -430,7 +707,11 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
+
