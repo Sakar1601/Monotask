@@ -14,7 +14,16 @@ type Connection = {
   refresh_token: string;
   expires_at: string;
   calendar_sync_enabled: boolean;
+  scope: string | null;
 };
+
+const REQUIRED_SCOPES = ["https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/tasks"];
+
+function hasWriteScopes(scope: string | null): boolean {
+  if (!scope) return false;
+  const granted = scope.split(" ");
+  return REQUIRED_SCOPES.every((required) => granted.includes(required));
+}
 
 async function ensureFreshToken(
   adminClient: ReturnType<typeof createClient>,
@@ -37,6 +46,13 @@ async function ensureFreshToken(
 }
 
 async function syncConnection(adminClient: ReturnType<typeof createClient>, connection: Connection) {
+  if (!hasWriteScopes(connection.scope)) {
+    await adminClient
+      .from("integration_connections")
+      .update({ status: "needs_reconnect" })
+      .eq("id", connection.id);
+    return;
+  }
   // Stamped onto every row this run touches, and used as the cutoff for
   // deleting rows the run did NOT touch (i.e. items no longer in Google).
   const syncStartedAt = new Date().toISOString();
@@ -51,8 +67,8 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
       googleProvider.fetchTasks(accessToken),
     ]);
 
-    await upsertEvents(adminClient, connection.id, events, syncStartedAt);
-    await upsertTasks(adminClient, connection.id, tasks, syncStartedAt);
+    await upsertEvents(adminClient, connection, events, syncStartedAt);
+    await upsertTasks(adminClient, connection, tasks, syncStartedAt);
 
     await adminClient
       .from("integration_connections")
@@ -72,67 +88,71 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
 
 async function upsertEvents(
   adminClient: ReturnType<typeof createClient>,
-  connectionId: string,
+  connection: Connection,
   events: ExternalEvent[],
   syncStartedAt: string,
 ) {
   if (events.length > 0) {
-    const { error } = await adminClient.from("external_events").upsert(
+    const { error } = await adminClient.from("events").upsert(
       events.map((e) => ({
-        connection_id: connectionId,
-        external_id: e.externalId,
+        user_id: connection.user_id,
+        google_connection_id: connection.id,
+        google_event_id: e.externalId,
         title: e.title,
         start_time: e.startTime,
         end_time: e.endTime,
         meeting_url: e.meetingUrl,
-        raw_payload: e.rawPayload,
+        synced_at: syncStartedAt,
         updated_at: syncStartedAt,
       })),
-      { onConflict: "connection_id,external_id" },
+      { onConflict: "google_connection_id,google_event_id" },
     );
     if (error) throw error;
   }
-  // Delete events for this connection that are no longer in the fetched
-  // window. Every row the upsert above touched now carries updated_at =
-  // syncStartedAt, so anything older is stale. Using the timestamp instead of
-  // a NOT IN (...) list of external ids keeps the query a fixed small size -
-  // a 250-event list produced an 8-9KB URL that could 414. If `events` is
-  // empty nothing was stamped, so this correctly clears the connection.
+  // Same timestamp-cutoff stale delete as before the retarget - anything
+  // for this connection not touched by the upsert above is gone from
+  // Google. If `events` is empty nothing was stamped, so this correctly
+  // clears every previously-synced event for this connection.
   const { error: deleteError } = await adminClient
-    .from("external_events")
+    .from("events")
     .delete()
-    .eq("connection_id", connectionId)
+    .eq("google_connection_id", connection.id)
     .lt("updated_at", syncStartedAt);
   if (deleteError) throw deleteError;
 }
 
 async function upsertTasks(
   adminClient: ReturnType<typeof createClient>,
-  connectionId: string,
+  connection: Connection,
   tasks: ExternalTask[],
   syncStartedAt: string,
 ) {
   if (tasks.length > 0) {
-    const { error } = await adminClient.from("external_tasks").upsert(
+    const { error } = await adminClient.from("tasks").upsert(
       tasks.map((t) => ({
-        connection_id: connectionId,
-        external_id: t.externalId,
+        user_id: connection.user_id,
+        google_connection_id: connection.id,
+        google_task_id: t.externalId,
         title: t.title,
         due_date: t.dueDate,
         status: t.status,
-        source_url: t.sourceUrl,
-        raw_payload: t.rawPayload,
+        priority: "medium",
+        synced_at: syncStartedAt,
         updated_at: syncStartedAt,
       })),
-      { onConflict: "connection_id,external_id" },
+      { onConflict: "google_connection_id,google_task_id" },
     );
     if (error) throw error;
   }
-  // Same timestamp-cutoff stale delete as upsertEvents - see the note there.
+  // Same timestamp-cutoff stale delete pattern as upsertEvents. Because
+  // fetchTasks now requests showCompleted=true (Task 3), a task completed
+  // in Google still appears in this run's fetch (status: 'completed') and
+  // is NOT deleted here - only a task actually removed/unshared in Google
+  // is now absent and gets cleaned up.
   const { error: deleteError } = await adminClient
-    .from("external_tasks")
+    .from("tasks")
     .delete()
-    .eq("connection_id", connectionId)
+    .eq("google_connection_id", connection.id)
     .lt("updated_at", syncStartedAt);
   if (deleteError) throw deleteError;
 }
@@ -188,7 +208,7 @@ Deno.serve(async (req: Request) => {
 
     let query = adminClient
       .from("integration_connections")
-      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled")
+      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled, scope")
       .eq("calendar_sync_enabled", true)
       .neq("status", "disconnected");
     if (connectionId) query = query.eq("id", connectionId);
