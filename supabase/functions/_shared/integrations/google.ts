@@ -1,8 +1,8 @@
 import type { ExternalEvent, ExternalTask, IntegrationProvider, TokenSet } from "./types.ts";
 
 const GOOGLE_SCOPES = [
-  "https://www.googleapis.com/auth/calendar.readonly",
-  "https://www.googleapis.com/auth/tasks.readonly",
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/tasks",
 ].join(" ");
 
 function tokenSetFromResponse(json: Record<string, unknown>, fallbackRefreshToken?: string): TokenSet {
@@ -124,7 +124,7 @@ export const googleProvider: IntegrationProvider = {
 
   async fetchTasks(accessToken: string): Promise<ExternalTask[]> {
     const response = await fetch(
-      "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks?showCompleted=false&maxResults=100",
+      "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks?showCompleted=true&maxResults=100",
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
     if (!response.ok) throw new Error(`Google tasks fetch failed: ${response.status} ${await response.text()}`);
