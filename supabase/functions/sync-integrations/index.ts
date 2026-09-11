@@ -8,6 +8,7 @@ const WINDOW_DAYS_FUTURE = 30;
 
 type Connection = {
   id: string;
+  user_id: string;
   provider: "google";
   access_token: string;
   refresh_token: string;
@@ -118,10 +119,40 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+    // Two legitimate caller types: the pg_cron job (using the service-role
+    // key - the system syncing everything) and an end user's own "Sync now"
+    // action (using their own session - syncing only their own connection).
+    // Unlike the OAuth-callback function (a plain browser redirect with no
+    // JWT at all), every real caller here is an API client that can send an
+    // Authorization header, so we authenticate it ourselves since the
+    // platform's verify_jwt gate is off (see config.toml comment).
+    const authHeader = req.headers.get("Authorization");
+    let authenticatedUserId: string | null = null;
+    if (authHeader === `Bearer ${serviceRoleKey}`) {
+      // System/cron caller - no per-user ownership filter needed below.
+    } else {
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user }, error: userError } = await userClient.auth.getUser();
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: "Not authenticated" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      authenticatedUserId = user.id;
+    }
 
     let connectionId: string | null = null;
     try {
@@ -133,10 +164,11 @@ Deno.serve(async (req: Request) => {
 
     let query = adminClient
       .from("integration_connections")
-      .select("id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled")
+      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled")
       .eq("calendar_sync_enabled", true)
       .neq("status", "disconnected");
     if (connectionId) query = query.eq("id", connectionId);
+    if (authenticatedUserId) query = query.eq("user_id", authenticatedUserId);
 
     const { data: connections, error } = await query;
     if (error) throw error;
