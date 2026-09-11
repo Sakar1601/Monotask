@@ -3,11 +3,12 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useTaskInstances } from '@/hooks/useTaskInstances';
-import { useExternalEvents } from '@/hooks/useExternalEvents';
+import { useEvents, Event } from '@/hooks/useEvents';
 import { getTasksForDate as getOccurrencesForDate, generateRecurringInstances, RecurringTaskInstance } from '@/utils/recurringTasks';
 import { isOccurrenceCompleted, getOccurrenceDate, toggleOccurrenceComplete } from '@/utils/taskOccurrences';
 import TaskModal from './TaskModal';
 import DayTasksModal from './DayTasksModal';
+import EventModal from './EventModal';
 
 const CalendarView: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -19,14 +20,16 @@ const CalendarView: React.FC = () => {
 
   const { tasks, isLoading: tasksLoading, updateTask } = useTasks();
   const { instances, isLoading: instancesLoading, updateInstance } = useTaskInstances();
-  const { events: externalEvents } = useExternalEvents();
+  const { events } = useEvents();
+  const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const isLoading = tasksLoading || instancesLoading;
 
   // start_time is a UTC ISO timestamp from PostgREST, but dateString is built
   // from LOCAL date components - compare on the event's LOCAL date so a late
   // evening event in a UTC-negative timezone doesn't land on the next day.
-  const getExternalEventsForDate = (dateString: string) =>
-    externalEvents.filter((event) => {
+  const getEventsForDate = (dateString: string) =>
+    events.filter((event) => {
       const eventDate = new Date(event.start_time);
       return formatDateForComparison(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()) === dateString;
     });
@@ -136,18 +139,20 @@ const CalendarView: React.FC = () => {
                 )}
               </div>
             ))}
-            {getExternalEventsForDate(dateString).slice(0, 2).map((event) => (
-              <a
+            {getEventsForDate(dateString).slice(0, 2).map((event) => (
+              <button
                 key={event.id}
-                href={event.meeting_url ?? undefined}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="block text-xs p-1 rounded truncate bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200"
-                title={`${event.title} (Google Calendar)`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingEvent(event);
+                  setIsEventModalOpen(true);
+                }}
+                className="block w-full text-left text-xs p-1 rounded truncate bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200"
+                title={event.title}
               >
                 {event.title}
-              </a>
+              </button>
             ))}
           </div>
         </button>
@@ -202,18 +207,20 @@ const CalendarView: React.FC = () => {
                 {task.title}
               </div>
             ))}
-            {getExternalEventsForDate(dateString).slice(0, 2).map((event) => (
-              <a
+            {getEventsForDate(dateString).slice(0, 2).map((event) => (
+              <button
                 key={event.id}
-                href={event.meeting_url ?? undefined}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="block text-xs p-1 rounded truncate bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200"
-                title={`${event.title} (Google Calendar)`}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingEvent(event);
+                  setIsEventModalOpen(true);
+                }}
+                className="block w-full text-left text-xs p-1 rounded truncate bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200"
+                title={event.title}
               >
                 {event.title}
-              </a>
+              </button>
             ))}
             {dayTasks.length > 3 && (
               <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -367,6 +374,15 @@ const CalendarView: React.FC = () => {
         date={selectedDate}
         tasks={getTasksForDate(selectedDate)}
         onToggleComplete={handleToggleComplete}
+      />
+
+      <EventModal
+        isOpen={isEventModalOpen}
+        onClose={() => {
+          setIsEventModalOpen(false);
+          setEditingEvent(null);
+        }}
+        event={editingEvent}
       />
     </div>
   );
