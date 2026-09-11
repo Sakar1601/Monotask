@@ -16,3 +16,6 @@ verify_jwt = false
 # request via the oauth_states "state" row instead.
 [functions.integration-oauth-callback]
 verify_jwt = false
+
+[functions.sync-integrations]
+verify_jwt = false
