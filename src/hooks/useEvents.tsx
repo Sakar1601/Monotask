@@ -6,12 +6,12 @@ import { toast } from 'sonner';
 export interface Event {
   id: string;
   title: string;
-  description?: string;
+  description?: string | null;
   start_time: string;
-  end_time?: string;
-  location?: string;
-  meeting_url?: string;
-  tag_id?: string;
+  end_time?: string | null;
+  location?: string | null;
+  meeting_url?: string | null;
+  tag_id?: string | null;
   google_connection_id?: string | null;
   google_event_id?: string | null;
   synced_at?: string | null;

@@ -51,8 +51,8 @@ export const useIntegrationConnections = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integration-connections', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['external-events', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['external-tasks', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
       toast.success('Disconnected');
     },
     onError: () => toast.error('Failed to disconnect'),
@@ -65,8 +65,8 @@ export const useIntegrationConnections = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integration-connections', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['external-events', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['external-tasks', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
       toast.success('Synced');
     },
     onError: () => toast.error('Sync failed'),

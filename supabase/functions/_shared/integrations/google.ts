@@ -29,6 +29,7 @@ interface GoogleTaskPayload {
   title?: string;
   due?: string;
   status?: string;
+  completed?: string;
   webViewLink?: string;
 }
 
@@ -53,6 +54,7 @@ export function mapGoogleTask(item: GoogleTaskPayload): ExternalTask | null {
     title: item.title || "(No title)",
     dueDate: item.due ? item.due.slice(0, 10) : null,
     status: item.status === "completed" ? "completed" : "pending",
+    completedAt: item.completed ?? null,
     sourceUrl: item.webViewLink ?? null,
     rawPayload: item,
   };
@@ -113,22 +115,41 @@ export const googleProvider: IntegrationProvider = {
       orderBy: "startTime",
       maxResults: "250",
     });
-    const response = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    if (!response.ok) throw new Error(`Google calendar fetch failed: ${response.status} ${await response.text()}`);
-    const json = await response.json();
-    return (json.items ?? []).map(mapGoogleEvent).filter((e: ExternalEvent | null): e is ExternalEvent => e !== null);
+    const events: ExternalEvent[] = [];
+    let pageToken: string | undefined;
+    do {
+      if (pageToken) params.set("pageToken", pageToken);
+      const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!response.ok) throw new Error(`Google calendar fetch failed: ${response.status} ${await response.text()}`);
+      const json = await response.json() as { items?: GoogleCalendarEventPayload[]; nextPageToken?: string };
+      events.push(...(json.items ?? []).map(mapGoogleEvent).filter((e): e is ExternalEvent => e !== null));
+      pageToken = json.nextPageToken;
+    } while (pageToken);
+    return events;
   },
 
   async fetchTasks(accessToken: string): Promise<ExternalTask[]> {
-    const response = await fetch(
-      "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks?showCompleted=true&maxResults=100",
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    if (!response.ok) throw new Error(`Google tasks fetch failed: ${response.status} ${await response.text()}`);
-    const json = await response.json();
-    return (json.items ?? []).map(mapGoogleTask).filter((t: ExternalTask | null): t is ExternalTask => t !== null);
+    const params = new URLSearchParams({
+      showCompleted: "true",
+      showHidden: "true",
+      maxResults: "100",
+    });
+    const tasks: ExternalTask[] = [];
+    let pageToken: string | undefined;
+    do {
+      if (pageToken) params.set("pageToken", pageToken);
+      const response = await fetch(
+        `https://tasks.googleapis.com/tasks/v1/lists/@default/tasks?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!response.ok) throw new Error(`Google tasks fetch failed: ${response.status} ${await response.text()}`);
+      const json = await response.json() as { items?: GoogleTaskPayload[]; nextPageToken?: string };
+      tasks.push(...(json.items ?? []).map(mapGoogleTask).filter((t): t is ExternalTask => t !== null));
+      pageToken = json.nextPageToken;
+    } while (pageToken);
+    return tasks;
   },
 };

@@ -72,12 +72,12 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
 
     const eventData = {
       title: formData.title,
-      description: formData.description || undefined,
+      description: formData.description || null,
       start_time: new Date(formData.start_time).toISOString(),
-      end_time: formData.end_time ? new Date(formData.end_time).toISOString() : undefined,
-      location: formData.location || undefined,
-      meeting_url: formData.meeting_url || undefined,
-      tag_id: formData.tag_id || undefined,
+      end_time: formData.end_time ? new Date(formData.end_time).toISOString() : null,
+      location: formData.location || null,
+      meeting_url: formData.meeting_url || null,
+      tag_id: formData.tag_id || null,
     };
 
     if (event) {

@@ -23,7 +23,7 @@ join public.integration_connections c on c.id = ee.connection_id;
 -- Google side, so every migrated task defaults to 'medium' (matches this
 -- plan's default for newly-synced tasks going forward, set in Task 4).
 insert into public.tasks (
-  user_id, title, due_date, status, priority,
+  user_id, title, due_date, status, completed_at, priority,
   google_connection_id, google_task_id, synced_at, created_at, updated_at
 )
 select
@@ -31,6 +31,7 @@ select
   et.title,
   et.due_date,
   et.status,
+  case when et.status = 'completed' then et.updated_at else null end,
   'medium',
   et.connection_id,
   et.external_id,

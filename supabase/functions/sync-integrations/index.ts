@@ -128,6 +128,24 @@ async function upsertTasks(
   syncStartedAt: string,
 ) {
   if (tasks.length > 0) {
+    const existingPriorities = new Map<string, string>();
+    const pageSize = 1_000;
+    let offset = 0;
+    while (true) {
+      const { data: existingTasks, error: existingError } = await adminClient
+        .from("tasks")
+        .select("google_task_id, priority")
+        .eq("google_connection_id", connection.id)
+        .order("google_task_id", { ascending: true })
+        .range(offset, offset + pageSize - 1);
+      if (existingError) throw existingError;
+      for (const task of existingTasks ?? []) {
+        if (task.google_task_id) existingPriorities.set(task.google_task_id, task.priority);
+      }
+      if ((existingTasks?.length ?? 0) < pageSize) break;
+      offset += pageSize;
+    }
+
     const { error } = await adminClient.from("tasks").upsert(
       tasks.map((t) => ({
         user_id: connection.user_id,
@@ -136,7 +154,8 @@ async function upsertTasks(
         title: t.title,
         due_date: t.dueDate,
         status: t.status,
-        priority: "medium",
+        completed_at: t.status === "completed" ? (t.completedAt ?? syncStartedAt) : null,
+        priority: existingPriorities.get(t.externalId) ?? "medium",
         synced_at: syncStartedAt,
         updated_at: syncStartedAt,
       })),

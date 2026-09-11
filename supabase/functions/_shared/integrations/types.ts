@@ -19,6 +19,7 @@ export interface ExternalTask {
   title: string;
   dueDate: string | null; // YYYY-MM-DD
   status: "pending" | "completed";
+  completedAt: string | null;
   sourceUrl: string | null;
   rawPayload: unknown;
 }
