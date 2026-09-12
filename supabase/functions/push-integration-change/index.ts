@@ -64,23 +64,28 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    let accessToken = connection.access_token;
-    const expiresInMs = new Date(connection.expires_at).getTime() - Date.now();
-    if (expiresInMs <= 60_000) {
-      const tokens = await googleProvider.refreshToken(connection.refresh_token);
-      await adminClient
-        .from("integration_connections")
-        .update({
-          access_token: tokens.accessToken,
-          refresh_token: tokens.refreshToken || connection.refresh_token,
-          expires_at: tokens.expiresAt,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", connection.id);
-      accessToken = tokens.accessToken;
-    }
-
+    // The token refresh lives inside this try alongside the push itself: a
+    // refresh failure (e.g. the user revoked the Google grant) is just as
+    // much a "could not sync this change" as a failed PATCH, and must be
+    // recorded on the row rather than falling through to a generic 500 that
+    // loses the real message.
     try {
+      let accessToken = connection.access_token;
+      const expiresInMs = new Date(connection.expires_at).getTime() - Date.now();
+      if (expiresInMs <= 60_000) {
+        const tokens = await googleProvider.refreshToken(connection.refresh_token);
+        await adminClient
+          .from("integration_connections")
+          .update({
+            access_token: tokens.accessToken,
+            refresh_token: tokens.refreshToken || connection.refresh_token,
+            expires_at: tokens.expiresAt,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", connection.id);
+        accessToken = tokens.accessToken;
+      }
+
       if (body.type === "event") {
         if (body.action === "delete") {
           await googleProvider.deleteEvent(accessToken, body.externalId);
@@ -95,6 +100,7 @@ Deno.serve(async (req: Request) => {
         }
       }
     } catch (pushError) {
+      // Covers both a token-refresh failure and the push call itself.
       const message = pushError instanceof Error ? pushError.message : String(pushError);
       // Only meaningful to record on the row for "update" - a "delete" has
       // already removed the local row before this function was ever called.

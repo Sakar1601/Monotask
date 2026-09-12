@@ -67,8 +67,8 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
       googleProvider.fetchTasks(accessToken, windowStart),
     ]);
 
-    await upsertEvents(adminClient, connection, events, syncStartedAt);
-    await upsertTasks(adminClient, connection, tasks, syncStartedAt);
+    await upsertEvents(adminClient, connection, accessToken, events, syncStartedAt);
+    await upsertTasks(adminClient, connection, accessToken, tasks, syncStartedAt);
 
     await adminClient
       .from("integration_connections")
@@ -89,6 +89,7 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
 async function upsertEvents(
   adminClient: ReturnType<typeof createClient>,
   connection: Connection,
+  accessToken: string,
   events: ExternalEvent[],
   syncStartedAt: string,
 ) {
@@ -155,6 +156,41 @@ async function upsertEvents(
       .in("google_event_id", toTouch);
     if (error) throw error;
   }
+  if (toTouch.length > 0) {
+    // Attempt to push each pending-edit row's current local content to
+    // Google. This is what makes a push failure (from
+    // push-integration-change, or an edit made while offline) actually
+    // self-heal on the next pull instead of staying permanently dirty -
+    // without this, hasPendingLocalEdit would stay true forever since
+    // nothing else ever advances synced_at for these rows.
+    const { data: pendingRows, error: pendingError } = await adminClient
+      .from("events")
+      .select("id, google_event_id, title, description, start_time, end_time, location")
+      .eq("google_connection_id", connection.id)
+      .in("google_event_id", toTouch);
+    if (pendingError) throw pendingError;
+    for (const row of pendingRows ?? []) {
+      if (!row.google_event_id) continue;
+      try {
+        await googleProvider.updateEvent(accessToken, row.google_event_id, {
+          title: row.title,
+          description: row.description,
+          startTime: row.start_time,
+          endTime: row.end_time,
+          location: row.location,
+        });
+        await adminClient
+          .from("events")
+          .update({ synced_at: new Date().toISOString(), sync_error: null })
+          .eq("id", row.id);
+      } catch (pushError) {
+        await adminClient
+          .from("events")
+          .update({ sync_error: pushError instanceof Error ? pushError.message : String(pushError) })
+          .eq("id", row.id);
+      }
+    }
+  }
 
   // Anything for this connection not confirmed present in Google this run
   // (neither upserted nor touched above) is gone from Google.
@@ -169,6 +205,7 @@ async function upsertEvents(
 async function upsertTasks(
   adminClient: ReturnType<typeof createClient>,
   connection: Connection,
+  accessToken: string,
   tasks: ExternalTask[],
   syncStartedAt: string,
 ) {
@@ -243,6 +280,34 @@ async function upsertTasks(
       .eq("google_connection_id", connection.id)
       .in("google_task_id", toTouch);
     if (error) throw error;
+  }
+  if (toTouch.length > 0) {
+    // Same retry-push self-heal as upsertEvents - see the comment there.
+    const { data: pendingRows, error: pendingError } = await adminClient
+      .from("tasks")
+      .select("id, google_task_id, title, due_date, status")
+      .eq("google_connection_id", connection.id)
+      .in("google_task_id", toTouch);
+    if (pendingError) throw pendingError;
+    for (const row of pendingRows ?? []) {
+      if (!row.google_task_id) continue;
+      try {
+        await googleProvider.updateTask(accessToken, row.google_task_id, {
+          title: row.title,
+          dueDate: row.due_date,
+          status: row.status === "completed" ? "completed" : "pending",
+        });
+        await adminClient
+          .from("tasks")
+          .update({ synced_at: new Date().toISOString(), sync_error: null })
+          .eq("id", row.id);
+      } catch (pushError) {
+        await adminClient
+          .from("tasks")
+          .update({ sync_error: pushError instanceof Error ? pushError.message : String(pushError) })
+          .eq("id", row.id);
+      }
+    }
   }
 
   // Same last_seen_at-cutoff stale delete pattern as upsertEvents. Because
