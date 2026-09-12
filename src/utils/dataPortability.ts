@@ -24,7 +24,7 @@ export interface ExportedTask {
   repeat_type: 'none' | 'daily' | 'weekly' | 'monthly';
   repeat_interval: number;
   tag_name: string | null;
-  source: 'monotask' | 'google';
+  source: 'monotask' | 'google' | 'microsoft';
 }
 
 export interface ExportedEvent {
@@ -35,7 +35,7 @@ export interface ExportedEvent {
   location: string | null;
   meeting_url: string | null;
   tag_name: string | null;
-  source: 'monotask' | 'google';
+  source: 'monotask' | 'google' | 'microsoft';
 }
 
 export interface ExportedHabit {
@@ -78,7 +78,7 @@ export const buildExportData = (
       repeat_type: task.repeat_type || 'none',
       repeat_interval: task.repeat_interval || 1,
       tag_name: task.tag_id ? tagNameById.get(task.tag_id) || null : null,
-      source: task.sync_connection_id ? 'google' : 'monotask',
+      source: task.sync_connection_id ? (task.sync_provider ?? 'google') : 'monotask',
     })),
     habits: habits.map((habit) => ({
       name: habit.name,
@@ -96,7 +96,7 @@ export const buildExportData = (
       location: event.location || null,
       meeting_url: event.meeting_url || null,
       tag_name: event.tag_id ? tagNameById.get(event.tag_id) || null : null,
-      source: event.sync_connection_id ? 'google' : 'monotask',
+      source: event.sync_connection_id ? (event.sync_provider ?? 'google') : 'monotask',
     })),
   };
 };
@@ -120,7 +120,7 @@ const isExportedTask = (v: unknown): v is ExportedTask => {
     ['none', 'daily', 'weekly', 'monthly'].includes(t.repeat_type) &&
     typeof t.repeat_interval === 'number' &&
     isNullableString(t.tag_name) &&
-    (t.source === undefined || ['monotask', 'google'].includes(t.source))
+    (t.source === undefined || ['monotask', 'google', 'microsoft'].includes(t.source))
   );
 };
 

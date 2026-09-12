@@ -67,7 +67,7 @@ export const exportToPDF = async (
       const status = task.status === 'completed' ? '✓' : '○';
       const dueDate = task.due_date ? ` (Due: ${task.due_date})` : '';
       const priority = task.priority ? ` [${task.priority.toUpperCase()}]` : '';
-      const source = task.sync_connection_id ? ' [Google]' : '';
+      const source = task.sync_connection_id ? (task.sync_provider === 'microsoft' ? ' [Outlook]' : ' [Google]') : '';
       
       pdf.text(`${status} ${task.title}${priority}${dueDate}${source}`, 25, yPosition);
       yPosition += lineHeight;
@@ -157,7 +157,7 @@ export const exportToPDF = async (
 
     events.forEach((event) => {
       checkPageBreak();
-      const source = event.sync_connection_id ? ' [Google]' : '';
+      const source = event.sync_connection_id ? (event.sync_provider === 'microsoft' ? ' [Outlook]' : ' [Google]') : '';
       const when = new Date(event.start_time).toLocaleString();
       pdf.text(`${event.title}${source} (${when})`, 25, yPosition);
       yPosition += lineHeight;

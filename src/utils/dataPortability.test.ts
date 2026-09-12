@@ -65,6 +65,20 @@ test('buildExportData tags each task and event with its source', () => {
   expect(data.events?.find((e) => e.title === 'Synced event')?.source).toBe('google');
 });
 
+test('buildExportData labels a Microsoft-origin task and event with source "microsoft"', () => {
+  const tasks: Task[] = [
+    { id: '5', title: 'Outlook task', priority: 'low', status: 'pending', created_at: '', updated_at: '', user_id: 'u', sync_connection_id: 'conn-2', sync_provider: 'microsoft' },
+  ];
+  const events: Event[] = [
+    { id: '6', title: 'Outlook event', start_time: '2026-01-01T00:00:00Z', created_at: '', updated_at: '', user_id: 'u', sync_connection_id: 'conn-2', sync_provider: 'microsoft' },
+  ];
+
+  const data = buildExportData(tasks, [], [], events);
+
+  expect(data.tasks.find((t) => t.title === 'Outlook task')?.source).toBe('microsoft');
+  expect(data.events?.find((e) => e.title === 'Outlook event')?.source).toBe('microsoft');
+});
+
 describe('parseImportFile', () => {
   const validExport = {
     version: 1,

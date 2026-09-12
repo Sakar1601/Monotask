@@ -59,7 +59,7 @@ const EventsView: React.FC = () => {
                   <h3 className="font-medium text-black dark:text-white">{event.title}</h3>
                   {event.sync_connection_id && (
                     <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200">
-                      Google
+                      {event.sync_provider === 'microsoft' ? 'Outlook' : 'Google'}
                     </span>
                   )}
                   {event.sync_error && (
