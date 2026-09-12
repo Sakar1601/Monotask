@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { googleProvider } from "../_shared/integrations/google.ts";
+import { providers } from "../_shared/integrations/registry.ts";
 import type { ExternalEvent, ExternalTask } from "../_shared/integrations/types.ts";
 
 const WINDOW_DAYS_PAST = 1;
@@ -9,20 +9,24 @@ const WINDOW_DAYS_FUTURE = 30;
 type Connection = {
   id: string;
   user_id: string;
-  provider: "google";
+  provider: "google" | "microsoft";
   access_token: string;
   refresh_token: string;
   expires_at: string;
   calendar_sync_enabled: boolean;
   scope: string | null;
+  provider_metadata: Record<string, unknown> | null;
 };
 
-const REQUIRED_SCOPES = ["https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/tasks"];
+const REQUIRED_SCOPES: Record<Connection["provider"], string[]> = {
+  google: ["https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/tasks"],
+  microsoft: ["Calendars.ReadWrite", "Tasks.ReadWrite"],
+};
 
-function hasWriteScopes(scope: string | null): boolean {
+function hasWriteScopes(provider: Connection["provider"], scope: string | null): boolean {
   if (!scope) return false;
   const granted = scope.split(" ");
-  return REQUIRED_SCOPES.every((required) => granted.includes(required));
+  return REQUIRED_SCOPES[provider].every((required) => granted.includes(required));
 }
 
 async function ensureFreshToken(
@@ -32,7 +36,7 @@ async function ensureFreshToken(
   const expiresInMs = new Date(connection.expires_at).getTime() - Date.now();
   if (expiresInMs > 60_000) return connection.access_token;
 
-  const tokens = await googleProvider.refreshToken(connection.refresh_token);
+  const tokens = await providers[connection.provider].refreshToken(connection.refresh_token);
   await adminClient
     .from("integration_connections")
     .update({
@@ -46,7 +50,7 @@ async function ensureFreshToken(
 }
 
 async function syncConnection(adminClient: ReturnType<typeof createClient>, connection: Connection) {
-  if (!hasWriteScopes(connection.scope)) {
+  if (!hasWriteScopes(connection.provider, connection.scope)) {
     await adminClient
       .from("integration_connections")
       .update({ status: "needs_reconnect" })
@@ -57,18 +61,32 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
   // deleting rows the run did NOT touch (i.e. items no longer in Google).
   const syncStartedAt = new Date().toISOString();
   try {
+    const provider = providers[connection.provider];
     const accessToken = await ensureFreshToken(adminClient, connection);
+
+    // Providers with extra per-connection state to resolve once (Microsoft's
+    // default task-list id) resolve and cache it here, generically - this
+    // function never checks connection.provider === "microsoft" by name.
+    let providerMetadata = connection.provider_metadata;
+    if (provider.resolveProviderMetadata && !providerMetadata) {
+      providerMetadata = await provider.resolveProviderMetadata(accessToken);
+      await adminClient
+        .from("integration_connections")
+        .update({ provider_metadata: providerMetadata })
+        .eq("id", connection.id);
+    }
+
     const now = new Date();
     const windowStart = new Date(now.getTime() - WINDOW_DAYS_PAST * 86_400_000);
     const windowEnd = new Date(now.getTime() + WINDOW_DAYS_FUTURE * 86_400_000);
 
     const [events, tasks] = await Promise.all([
-      googleProvider.fetchEvents(accessToken, windowStart, windowEnd),
-      googleProvider.fetchTasks(accessToken, windowStart),
+      provider.fetchEvents(accessToken, windowStart, windowEnd),
+      provider.fetchTasks(accessToken, windowStart, providerMetadata),
     ]);
 
     await upsertEvents(adminClient, connection, accessToken, events, syncStartedAt);
-    await upsertTasks(adminClient, connection, accessToken, tasks, syncStartedAt);
+    await upsertTasks(adminClient, connection, accessToken, tasks, syncStartedAt, providerMetadata);
 
     await adminClient
       .from("integration_connections")
@@ -130,6 +148,7 @@ async function upsertEvents(
       user_id: connection.user_id,
       sync_connection_id: connection.id,
       external_event_id: e.externalId,
+      sync_provider: connection.provider,
       title: e.title,
       start_time: e.startTime,
       end_time: e.endTime,
@@ -172,7 +191,7 @@ async function upsertEvents(
     for (const row of pendingRows ?? []) {
       if (!row.external_event_id) continue;
       try {
-        await googleProvider.updateEvent(accessToken, row.external_event_id, {
+        await providers[connection.provider].updateEvent(accessToken, row.external_event_id, {
           title: row.title,
           description: row.description,
           startTime: row.start_time,
@@ -208,6 +227,7 @@ async function upsertTasks(
   accessToken: string,
   tasks: ExternalTask[],
   syncStartedAt: string,
+  providerMetadata: Record<string, unknown> | null,
 ) {
   // priority has no Google Tasks equivalent - the plan's upsert would
   // otherwise reset it to "medium" on every 10-minute resync, silently
@@ -258,6 +278,7 @@ async function upsertTasks(
       user_id: connection.user_id,
       sync_connection_id: connection.id,
       external_task_id: t.externalId,
+      sync_provider: connection.provider,
       title: t.title,
       due_date: t.dueDate,
       status: t.status,
@@ -292,11 +313,11 @@ async function upsertTasks(
     for (const row of pendingRows ?? []) {
       if (!row.external_task_id) continue;
       try {
-        await googleProvider.updateTask(accessToken, row.external_task_id, {
+        await providers[connection.provider].updateTask(accessToken, row.external_task_id, {
           title: row.title,
           dueDate: row.due_date,
           status: row.status === "completed" ? "completed" : "pending",
-        });
+        }, providerMetadata);
         await adminClient
           .from("tasks")
           .update({ synced_at: new Date().toISOString(), sync_error: null })
@@ -374,7 +395,7 @@ Deno.serve(async (req: Request) => {
 
     let query = adminClient
       .from("integration_connections")
-      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled, scope")
+      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled, scope, provider_metadata")
       .eq("calendar_sync_enabled", true)
       .neq("status", "disconnected");
     if (connectionId) query = query.eq("id", connectionId);
