@@ -94,19 +94,33 @@ async function upsertEvents(
 ) {
   // Load existing rows for this connection to decide, per fetched event,
   // whether it has an unconfirmed local edit that should block overwrite.
-  const { data: existingRows, error: existingError } = await adminClient
-    .from("events")
-    .select("google_event_id, updated_at, synced_at")
-    .eq("google_connection_id", connection.id);
-  if (existingError) throw existingError;
-  const existingByExternalId = new Map((existingRows ?? []).map((r) => [r.google_event_id, r]));
+  // Paginated the same way upsertTasks's existing-row lookup is, since
+  // PostgREST caps an unbounded select at 1000 rows by default and
+  // fetchEvents can return more than that in a single run.
+  const existingByExternalId = new Map<string, { updated_at: string; synced_at: string | null }>();
+  const pageSize = 1_000;
+  let offset = 0;
+  while (true) {
+    const { data: existingRows, error: existingError } = await adminClient
+      .from("events")
+      .select("google_event_id, updated_at, synced_at")
+      .eq("google_connection_id", connection.id)
+      .order("google_event_id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (existingError) throw existingError;
+    for (const row of existingRows ?? []) {
+      if (row.google_event_id) existingByExternalId.set(row.google_event_id, { updated_at: row.updated_at, synced_at: row.synced_at });
+    }
+    if ((existingRows?.length ?? 0) < pageSize) break;
+    offset += pageSize;
+  }
 
   const toUpsert: Record<string, unknown>[] = [];
   const toTouch: string[] = []; // google_event_ids present in Google but skipped (pending local edit)
 
   for (const e of events) {
     const existing = existingByExternalId.get(e.externalId);
-    const hasPendingLocalEdit = existing && existing.synced_at && new Date(existing.updated_at) > new Date(existing.synced_at);
+    const hasPendingLocalEdit = existing?.synced_at && new Date(existing.updated_at) > new Date(existing.synced_at);
     if (hasPendingLocalEdit) {
       toTouch.push(e.externalId);
       continue;
