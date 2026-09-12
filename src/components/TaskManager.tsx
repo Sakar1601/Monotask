@@ -191,11 +191,20 @@ const TaskManager: React.FC = () => {
                   {task.priority}
                 </Badge>
                 {task.tags && (
-                  <Badge 
+                  <Badge
                     className="text-xs text-white"
                     style={{ backgroundColor: task.tags.color }}
                   >
                     {task.tags.name}
+                  </Badge>
+                )}
+                {task.sync_error && (
+                  <Badge
+                    variant="outline"
+                    className="text-xs border-red-300 text-red-700 dark:border-red-800 dark:text-red-300"
+                    title={task.sync_error}
+                  >
+                    Sync failed
                   </Badge>
                 )}
               </div>
