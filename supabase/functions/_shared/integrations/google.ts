@@ -1,4 +1,4 @@
-import type { ExternalEvent, ExternalTask, IntegrationProvider, TokenSet } from "./types.ts";
+import type { EventChanges, ExternalEvent, ExternalTask, IntegrationProvider, TaskChanges, TokenSet } from "./types.ts";
 
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar",
@@ -165,5 +165,63 @@ export const googleProvider: IntegrationProvider = {
       pageCount++;
     } while (pageToken && pageCount < MAX_PAGES);
     return tasks;
+  },
+
+  async updateEvent(accessToken: string, googleEventId: string, changes: EventChanges): Promise<void> {
+    const body: Record<string, unknown> = {};
+    if (changes.title !== undefined) body.summary = changes.title;
+    if (changes.description !== undefined) body.description = changes.description;
+    if (changes.startTime !== undefined) body.start = { dateTime: changes.startTime };
+    if (changes.endTime !== undefined) body.end = changes.endTime ? { dateTime: changes.endTime } : null;
+    if (changes.location !== undefined) body.location = changes.location;
+
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(googleEventId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!response.ok) throw new Error(`Google event update failed: ${response.status} ${await response.text()}`);
+  },
+
+  async deleteEvent(accessToken: string, googleEventId: string): Promise<void> {
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(googleEventId)}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    // Google returns 410 Gone if the event was already deleted on their side -
+    // treat that the same as success, since the end state (gone) matches.
+    if (!response.ok && response.status !== 410) {
+      throw new Error(`Google event delete failed: ${response.status} ${await response.text()}`);
+    }
+  },
+
+  async updateTask(accessToken: string, googleTaskId: string, changes: TaskChanges): Promise<void> {
+    const body: Record<string, unknown> = {};
+    if (changes.title !== undefined) body.title = changes.title;
+    if (changes.dueDate !== undefined) body.due = changes.dueDate ? `${changes.dueDate}T00:00:00.000Z` : null;
+    if (changes.status !== undefined) body.status = changes.status === "completed" ? "completed" : "needsAction";
+
+    const response = await fetch(
+      `https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${encodeURIComponent(googleTaskId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!response.ok) throw new Error(`Google task update failed: ${response.status} ${await response.text()}`);
+  },
+
+  async deleteTask(accessToken: string, googleTaskId: string): Promise<void> {
+    const response = await fetch(
+      `https://tasks.googleapis.com/tasks/v1/lists/@default/tasks/${encodeURIComponent(googleTaskId)}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!response.ok && response.status !== 410) {
+      throw new Error(`Google task delete failed: ${response.status} ${await response.text()}`);
+    }
   },
 };

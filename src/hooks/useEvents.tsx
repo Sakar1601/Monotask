@@ -109,6 +109,31 @@ export const useEvents = () => {
       });
       queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
       toast.success('Event updated successfully');
+
+      if (updatedEvent.google_connection_id && updatedEvent.google_event_id) {
+        supabase.functions
+          .invoke('push-integration-change', {
+            body: {
+              type: 'event',
+              action: 'update',
+              connectionId: updatedEvent.google_connection_id,
+              externalId: updatedEvent.google_event_id,
+              changes: {
+                title: updatedEvent.title,
+                description: updatedEvent.description ?? null,
+                startTime: updatedEvent.start_time,
+                endTime: updatedEvent.end_time ?? null,
+                location: updatedEvent.location ?? null,
+              },
+            },
+          })
+          .then(({ error }) => {
+            if (error) toast.error('Saved locally, but could not sync the change to Google');
+            // Either way the row's sync_error/synced_at may have changed
+            // server-side, so refetch to show (or clear) the failure badge.
+            queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
+          });
+      }
     },
     onError: (error) => {
       console.error('Event update failed:', error);
@@ -122,12 +147,33 @@ export const useEvents = () => {
       if (error) throw error;
       return id;
     },
-    onSuccess: (deletedId) => {
+    onMutate: async (id: string) => {
+      const existing = queryClient.getQueryData<Event[]>(['events', user?.id]);
+      return { deletedEventSnapshot: existing?.find((e) => e.id === id) };
+    },
+    onSuccess: (deletedId, _variables, context) => {
       queryClient.setQueryData(['events', user?.id], (oldEvents: Event[] = []) => {
         return oldEvents.filter((event) => event.id !== deletedId);
       });
       queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
       toast.success('Event deleted successfully');
+
+      const snapshot = context?.deletedEventSnapshot;
+      if (snapshot?.google_connection_id && snapshot?.google_event_id) {
+        supabase.functions
+          .invoke('push-integration-change', {
+            body: {
+              type: 'event',
+              action: 'delete',
+              connectionId: snapshot.google_connection_id,
+              externalId: snapshot.google_event_id,
+            },
+          })
+          .then(({ error }) => {
+            if (error) toast.error('Deleted locally, but could not delete it in Google');
+            queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
+          });
+      }
     },
     onError: (error) => {
       console.error('Event deletion failed:', error);

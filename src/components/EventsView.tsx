@@ -62,6 +62,14 @@ const EventsView: React.FC = () => {
                       Google
                     </span>
                   )}
+                  {event.sync_error && (
+                    <span
+                      className="text-xs px-2 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200"
+                      title={event.sync_error}
+                    >
+                      Sync failed
+                    </span>
+                  )}
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {new Date(event.start_time).toLocaleString()}

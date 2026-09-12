@@ -35,6 +35,12 @@ verify_jwt = false
 [functions.sync-integrations]
 verify_jwt = false
 
+# Invoked from the browser via supabase.functions.invoke(), which triggers
+# a CORS preflight; the function does its own supabase.auth.getUser() check
+# internally (same reasoning as integration-oauth-start).
+[functions.push-integration-change]
+verify_jwt = false
+
 # Google as a Supabase Auth sign-in provider (separate from the
 # GOOGLE_CLIENT_ID/SECRET function secrets used by the "Connect Google"
 # calendar/task-sync flow - Auth needs its own OAuth client credentials,

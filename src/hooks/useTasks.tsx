@@ -151,6 +151,29 @@ export const useTasks = () => {
       
       queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
       toast.success('Task updated successfully');
+
+      if (updatedTask.google_connection_id && updatedTask.google_task_id) {
+        supabase.functions
+          .invoke('push-integration-change', {
+            body: {
+              type: 'task',
+              action: 'update',
+              connectionId: updatedTask.google_connection_id,
+              externalId: updatedTask.google_task_id,
+              changes: {
+                title: updatedTask.title,
+                dueDate: updatedTask.due_date ?? null,
+                status: updatedTask.status === 'completed' ? 'completed' : 'pending',
+              },
+            },
+          })
+          .then(({ error }) => {
+            if (error) toast.error('Saved locally, but could not sync the change to Google');
+            // Either way the row's sync_error/synced_at may have changed
+            // server-side, so refetch to show (or clear) the failure badge.
+            queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
+          });
+      }
     },
     onError: (error) => {
       console.error('Task update failed:', error);
@@ -169,13 +192,34 @@ export const useTasks = () => {
       if (error) throw error;
       return id;
     },
-    onSuccess: (deletedId) => {
+    onMutate: async (id: string) => {
+      const existing = queryClient.getQueryData<Task[]>(['tasks', user?.id]);
+      return { deletedTaskSnapshot: existing?.find((t) => t.id === id) };
+    },
+    onSuccess: (deletedId, _variables, context) => {
       queryClient.setQueryData(['tasks', user?.id], (oldTasks: Task[] = []) => {
         return oldTasks.filter(task => task.id !== deletedId);
       });
-      
+
       queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
       toast.success('Task deleted successfully');
+
+      const snapshot = context?.deletedTaskSnapshot;
+      if (snapshot?.google_connection_id && snapshot?.google_task_id) {
+        supabase.functions
+          .invoke('push-integration-change', {
+            body: {
+              type: 'task',
+              action: 'delete',
+              connectionId: snapshot.google_connection_id,
+              externalId: snapshot.google_task_id,
+            },
+          })
+          .then(({ error }) => {
+            if (error) toast.error('Deleted locally, but could not delete it in Google');
+            queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
+          });
+      }
     },
     onError: (error) => {
       console.error('Task deletion failed:', error);

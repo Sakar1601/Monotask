@@ -66,6 +66,7 @@ export type Database = {
           google_connection_id: string | null
           google_event_id: string | null
           id: string
+          last_seen_at: string | null
           location: string | null
           meeting_url: string | null
           start_time: string
@@ -83,6 +84,7 @@ export type Database = {
           google_connection_id?: string | null
           google_event_id?: string | null
           id?: string
+          last_seen_at?: string | null
           location?: string | null
           meeting_url?: string | null
           start_time: string
@@ -100,6 +102,7 @@ export type Database = {
           google_connection_id?: string | null
           google_event_id?: string | null
           id?: string
+          last_seen_at?: string | null
           location?: string | null
           meeting_url?: string | null
           start_time?: string
@@ -442,6 +445,7 @@ export type Database = {
           google_connection_id: string | null
           google_task_id: string | null
           id: string
+          last_seen_at: string | null
           priority: string | null
           repeat_interval: number | null
           repeat_type: string | null
@@ -462,6 +466,7 @@ export type Database = {
           google_connection_id?: string | null
           google_task_id?: string | null
           id?: string
+          last_seen_at?: string | null
           priority?: string | null
           repeat_interval?: number | null
           repeat_type?: string | null
@@ -482,6 +487,7 @@ export type Database = {
           google_connection_id?: string | null
           google_task_id?: string | null
           id?: string
+          last_seen_at?: string | null
           priority?: string | null
           repeat_interval?: number | null
           repeat_type?: string | null

@@ -124,11 +124,11 @@ const CalendarView: React.FC = () => {
           </div>
           <div className="space-y-2">
             {dayTasks.map((task) => (
-              <div 
+              <div
                 key={`${task.id}-${getOccurrenceDate(task)}`}
                 className={`text-xs p-2 rounded ${
-                  isOccurrenceCompleted(task) 
-                    ? 'bg-gray-200 dark:bg-gray-700 line-through text-gray-600 dark:text-gray-400' 
+                  isOccurrenceCompleted(task)
+                    ? 'bg-gray-200 dark:bg-gray-700 line-through text-gray-600 dark:text-gray-400'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                 }`}
                 title={task.title}
@@ -148,8 +148,10 @@ const CalendarView: React.FC = () => {
                   setEditingEvent(event);
                   setIsEventModalOpen(true);
                 }}
-                className="block w-full text-left text-xs p-1 rounded truncate bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200"
-                title={event.title}
+                className={`block w-full text-left text-xs p-1 rounded truncate bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 ${
+                  event.sync_error ? 'ring-1 ring-red-500' : ''
+                }`}
+                title={event.sync_error ? `${event.title} (sync failed: ${event.sync_error})` : event.title}
               >
                 {event.title}
               </button>
@@ -195,11 +197,11 @@ const CalendarView: React.FC = () => {
           </div>
           <div className="space-y-1 overflow-hidden">
             {dayTasks.slice(0, 3).map((task) => (
-              <div 
-                key={`${task.id}-${getOccurrenceDate(task)}`} 
+              <div
+                key={`${task.id}-${getOccurrenceDate(task)}`}
                 className={`text-xs p-1 rounded truncate ${
-                  isOccurrenceCompleted(task) 
-                    ? 'bg-gray-200 dark:bg-gray-700 line-through text-gray-600 dark:text-gray-400' 
+                  isOccurrenceCompleted(task)
+                    ? 'bg-gray-200 dark:bg-gray-700 line-through text-gray-600 dark:text-gray-400'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                 }`}
                 title={task.title}
@@ -216,8 +218,10 @@ const CalendarView: React.FC = () => {
                   setEditingEvent(event);
                   setIsEventModalOpen(true);
                 }}
-                className="block w-full text-left text-xs p-1 rounded truncate bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200"
-                title={event.title}
+                className={`block w-full text-left text-xs p-1 rounded truncate bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 ${
+                  event.sync_error ? 'ring-1 ring-red-500' : ''
+                }`}
+                title={event.sync_error ? `${event.title} (sync failed: ${event.sync_error})` : event.title}
               >
                 {event.title}
               </button>
