@@ -92,32 +92,63 @@ async function upsertEvents(
   events: ExternalEvent[],
   syncStartedAt: string,
 ) {
-  if (events.length > 0) {
-    const { error } = await adminClient.from("events").upsert(
-      events.map((e) => ({
-        user_id: connection.user_id,
-        google_connection_id: connection.id,
-        google_event_id: e.externalId,
-        title: e.title,
-        start_time: e.startTime,
-        end_time: e.endTime,
-        meeting_url: e.meetingUrl,
-        synced_at: syncStartedAt,
-        updated_at: syncStartedAt,
-      })),
-      { onConflict: "google_connection_id,google_event_id" },
-    );
+  // Load existing rows for this connection to decide, per fetched event,
+  // whether it has an unconfirmed local edit that should block overwrite.
+  const { data: existingRows, error: existingError } = await adminClient
+    .from("events")
+    .select("google_event_id, updated_at, synced_at")
+    .eq("google_connection_id", connection.id);
+  if (existingError) throw existingError;
+  const existingByExternalId = new Map((existingRows ?? []).map((r) => [r.google_event_id, r]));
+
+  const toUpsert: Record<string, unknown>[] = [];
+  const toTouch: string[] = []; // google_event_ids present in Google but skipped (pending local edit)
+
+  for (const e of events) {
+    const existing = existingByExternalId.get(e.externalId);
+    const hasPendingLocalEdit = existing && existing.synced_at && new Date(existing.updated_at) > new Date(existing.synced_at);
+    if (hasPendingLocalEdit) {
+      toTouch.push(e.externalId);
+      continue;
+    }
+    toUpsert.push({
+      user_id: connection.user_id,
+      google_connection_id: connection.id,
+      google_event_id: e.externalId,
+      title: e.title,
+      start_time: e.startTime,
+      end_time: e.endTime,
+      meeting_url: e.meetingUrl,
+      synced_at: syncStartedAt,
+      last_seen_at: syncStartedAt,
+      updated_at: syncStartedAt,
+    });
+  }
+
+  if (toUpsert.length > 0) {
+    const { error } = await adminClient.from("events").upsert(toUpsert, { onConflict: "google_connection_id,google_event_id" });
     if (error) throw error;
   }
-  // Same timestamp-cutoff stale delete as before the retarget - anything
-  // for this connection not touched by the upsert above is gone from
-  // Google. If `events` is empty nothing was stamped, so this correctly
-  // clears every previously-synced event for this connection.
+  if (toTouch.length > 0) {
+    // Confirm these rows are still present in Google (protects them from
+    // the delete-stale check below) WITHOUT touching their content or
+    // updated_at - only last_seen_at moves, so the pending-edit signal
+    // (updated_at > synced_at) survives for the retry on the next pull.
+    const { error } = await adminClient
+      .from("events")
+      .update({ last_seen_at: syncStartedAt })
+      .eq("google_connection_id", connection.id)
+      .in("google_event_id", toTouch);
+    if (error) throw error;
+  }
+
+  // Anything for this connection not confirmed present in Google this run
+  // (neither upserted nor touched above) is gone from Google.
   const { error: deleteError } = await adminClient
     .from("events")
     .delete()
     .eq("google_connection_id", connection.id)
-    .lt("updated_at", syncStartedAt);
+    .or(`last_seen_at.is.null,last_seen_at.lt.${syncStartedAt}`);
   if (deleteError) throw deleteError;
 }
 
@@ -127,52 +158,80 @@ async function upsertTasks(
   tasks: ExternalTask[],
   syncStartedAt: string,
 ) {
-  if (tasks.length > 0) {
-    // priority has no Google Tasks equivalent - the plan's upsert would
-    // otherwise reset it to "medium" on every 10-minute resync, silently
-    // discarding a priority the user set locally. This is a local-only
-    // field lookup, not conflict resolution: no timestamp comparison, no
-    // decision to skip overwriting anything else. title/due_date/status
-    // are still fully Google-authoritative and overwritten every run, by
-    // design - this plan is pull-only, and priority is the one field
-    // Google has no concept of at all, so "preserve whatever's already
-    // there" is the only sensible default for it specifically.
-    const existingPriorities = new Map<string, string>();
-    const pageSize = 1_000;
-    let offset = 0;
-    while (true) {
-      const { data: existingTasks, error: existingError } = await adminClient
-        .from("tasks")
-        .select("google_task_id, priority")
-        .eq("google_connection_id", connection.id)
-        .order("google_task_id", { ascending: true })
-        .range(offset, offset + pageSize - 1);
-      if (existingError) throw existingError;
-      for (const task of existingTasks ?? []) {
-        if (task.google_task_id) existingPriorities.set(task.google_task_id, task.priority);
+  // priority has no Google Tasks equivalent - the plan's upsert would
+  // otherwise reset it to "medium" on every 10-minute resync, silently
+  // discarding a priority the user set locally. This is a local-only
+  // field lookup, not conflict resolution on its own: title/due_date/status
+  // are still fully Google-authoritative and overwritten every run, by
+  // design - this plan is pull-only, and priority is the one field
+  // Google has no concept of at all, so "preserve whatever's already
+  // there" is the only sensible default for it specifically. It is now
+  // combined with updated_at/synced_at, also fetched here, to additionally
+  // decide whether a row has a pending local edit that should block the
+  // overwrite entirely (see hasPendingLocalEdit below).
+  const existingByExternalId = new Map<string, { priority: string; updated_at: string; synced_at: string | null }>();
+  const pageSize = 1_000;
+  let offset = 0;
+  while (true) {
+    const { data: existingTasks, error: existingError } = await adminClient
+      .from("tasks")
+      .select("google_task_id, priority, updated_at, synced_at")
+      .eq("google_connection_id", connection.id)
+      .order("google_task_id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (existingError) throw existingError;
+    for (const task of existingTasks ?? []) {
+      if (task.google_task_id) {
+        existingByExternalId.set(task.google_task_id, {
+          priority: task.priority,
+          updated_at: task.updated_at,
+          synced_at: task.synced_at,
+        });
       }
-      if ((existingTasks?.length ?? 0) < pageSize) break;
-      offset += pageSize;
     }
+    if ((existingTasks?.length ?? 0) < pageSize) break;
+    offset += pageSize;
+  }
 
-    const { error } = await adminClient.from("tasks").upsert(
-      tasks.map((t) => ({
-        user_id: connection.user_id,
-        google_connection_id: connection.id,
-        google_task_id: t.externalId,
-        title: t.title,
-        due_date: t.dueDate,
-        status: t.status,
-        completed_at: t.status === "completed" ? (t.completedAt ?? syncStartedAt) : null,
-        priority: existingPriorities.get(t.externalId) ?? "medium",
-        synced_at: syncStartedAt,
-        updated_at: syncStartedAt,
-      })),
-      { onConflict: "google_connection_id,google_task_id" },
-    );
+  const toUpsert: Record<string, unknown>[] = [];
+  const toTouch: string[] = [];
+
+  for (const t of tasks) {
+    const existing = existingByExternalId.get(t.externalId);
+    const hasPendingLocalEdit = existing?.synced_at && new Date(existing.updated_at) > new Date(existing.synced_at);
+    if (hasPendingLocalEdit) {
+      toTouch.push(t.externalId);
+      continue;
+    }
+    toUpsert.push({
+      user_id: connection.user_id,
+      google_connection_id: connection.id,
+      google_task_id: t.externalId,
+      title: t.title,
+      due_date: t.dueDate,
+      status: t.status,
+      completed_at: t.status === "completed" ? (t.completedAt ?? syncStartedAt) : null,
+      priority: existing?.priority ?? "medium",
+      synced_at: syncStartedAt,
+      last_seen_at: syncStartedAt,
+      updated_at: syncStartedAt,
+    });
+  }
+
+  if (toUpsert.length > 0) {
+    const { error } = await adminClient.from("tasks").upsert(toUpsert, { onConflict: "google_connection_id,google_task_id" });
     if (error) throw error;
   }
-  // Same timestamp-cutoff stale delete pattern as upsertEvents. Because
+  if (toTouch.length > 0) {
+    const { error } = await adminClient
+      .from("tasks")
+      .update({ last_seen_at: syncStartedAt })
+      .eq("google_connection_id", connection.id)
+      .in("google_task_id", toTouch);
+    if (error) throw error;
+  }
+
+  // Same last_seen_at-cutoff stale delete pattern as upsertEvents. Because
   // fetchTasks now requests showCompleted=true (Task 3), a task completed
   // in Google still appears in this run's fetch (status: 'completed') and
   // is NOT deleted here - only a task actually removed/unshared in Google
@@ -181,7 +240,7 @@ async function upsertTasks(
     .from("tasks")
     .delete()
     .eq("google_connection_id", connection.id)
-    .lt("updated_at", syncStartedAt);
+    .or(`last_seen_at.is.null,last_seen_at.lt.${syncStartedAt}`);
   if (deleteError) throw deleteError;
 }
 
