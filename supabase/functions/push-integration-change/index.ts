@@ -1,7 +1,7 @@
 // supabase/functions/push-integration-change/index.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { googleProvider } from "../_shared/integrations/google.ts";
+import { providers } from "../_shared/integrations/registry.ts";
 import type { EventChanges, TaskChanges } from "../_shared/integrations/types.ts";
 
 interface PushBody {
@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
     // touching its tokens - this is the one security-critical check here.
     const { data: connection, error: connError } = await adminClient
       .from("integration_connections")
-      .select("id, access_token, refresh_token, expires_at")
+      .select("id, provider, access_token, refresh_token, expires_at, provider_metadata")
       .eq("id", body.connectionId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -70,10 +70,11 @@ Deno.serve(async (req: Request) => {
     // recorded on the row rather than falling through to a generic 500 that
     // loses the real message.
     try {
+      const provider = providers[connection.provider];
       let accessToken = connection.access_token;
       const expiresInMs = new Date(connection.expires_at).getTime() - Date.now();
       if (expiresInMs <= 60_000) {
-        const tokens = await googleProvider.refreshToken(connection.refresh_token);
+        const tokens = await provider.refreshToken(connection.refresh_token);
         await adminClient
           .from("integration_connections")
           .update({
@@ -86,17 +87,29 @@ Deno.serve(async (req: Request) => {
         accessToken = tokens.accessToken;
       }
 
+      // Same generic, feature-detected resolve-and-cache pattern as
+      // sync-integrations - a single failed push must not skip caching this,
+      // or every subsequent push for the same connection re-resolves it.
+      let providerMetadata = connection.provider_metadata;
+      if (provider.resolveProviderMetadata && !providerMetadata) {
+        providerMetadata = await provider.resolveProviderMetadata(accessToken);
+        await adminClient
+          .from("integration_connections")
+          .update({ provider_metadata: providerMetadata })
+          .eq("id", connection.id);
+      }
+
       if (body.type === "event") {
         if (body.action === "delete") {
-          await googleProvider.deleteEvent(accessToken, body.externalId);
+          await provider.deleteEvent(accessToken, body.externalId);
         } else {
-          await googleProvider.updateEvent(accessToken, body.externalId, (body.changes ?? {}) as EventChanges);
+          await provider.updateEvent(accessToken, body.externalId, (body.changes ?? {}) as EventChanges);
         }
       } else {
         if (body.action === "delete") {
-          await googleProvider.deleteTask(accessToken, body.externalId);
+          await provider.deleteTask(accessToken, body.externalId, providerMetadata);
         } else {
-          await googleProvider.updateTask(accessToken, body.externalId, (body.changes ?? {}) as TaskChanges);
+          await provider.updateTask(accessToken, body.externalId, (body.changes ?? {}) as TaskChanges, providerMetadata);
         }
       }
     } catch (pushError) {
