@@ -52,3 +52,34 @@ describe('Google Tasks pull fidelity', () => {
     expect(tasks).toHaveLength(20);
   });
 });
+
+describe('Google push mechanism', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('sends only the changed fields on task update, mapping status correctly', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await googleProvider.updateTask('token', 'task-1', { status: 'completed' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/tasks/task-1');
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body)).toEqual({ status: 'completed' });
+  });
+
+  it('treats a 410 on delete as success (already gone in Google)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 410 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(googleProvider.deleteTask('token', 'task-1')).resolves.toBeUndefined();
+  });
+
+  it('throws on a real delete failure', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('server error', { status: 500 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(googleProvider.deleteTask('token', 'task-1')).rejects.toThrow(/500/);
+  });
+});
