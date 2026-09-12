@@ -63,14 +63,15 @@ export type Database = {
           created_at: string
           description: string | null
           end_time: string | null
-          google_connection_id: string | null
-          google_event_id: string | null
+          external_event_id: string | null
           id: string
           last_seen_at: string | null
           location: string | null
           meeting_url: string | null
           start_time: string
+          sync_connection_id: string | null
           sync_error: string | null
+          sync_provider: string | null
           synced_at: string | null
           tag_id: string | null
           title: string
@@ -81,14 +82,15 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_time?: string | null
-          google_connection_id?: string | null
-          google_event_id?: string | null
+          external_event_id?: string | null
           id?: string
           last_seen_at?: string | null
           location?: string | null
           meeting_url?: string | null
           start_time: string
+          sync_connection_id?: string | null
           sync_error?: string | null
+          sync_provider?: string | null
           synced_at?: string | null
           tag_id?: string | null
           title: string
@@ -99,14 +101,15 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_time?: string | null
-          google_connection_id?: string | null
-          google_event_id?: string | null
+          external_event_id?: string | null
           id?: string
           last_seen_at?: string | null
           location?: string | null
           meeting_url?: string | null
           start_time?: string
+          sync_connection_id?: string | null
           sync_error?: string | null
+          sync_provider?: string | null
           synced_at?: string | null
           tag_id?: string | null
           title?: string
@@ -116,14 +119,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "events_google_connection_id_fkey"
-            columns: ["google_connection_id"]
+            columns: ["sync_connection_id"]
             isOneToOne: false
             referencedRelation: "integration_connections"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "events_google_connection_id_fkey"
-            columns: ["google_connection_id"]
+            columns: ["sync_connection_id"]
             isOneToOne: false
             referencedRelation: "integration_connections_view"
             referencedColumns: ["id"]
@@ -241,6 +244,7 @@ export type Database = {
           last_synced_at: string | null
           message_scan_enabled: boolean
           provider: string
+          provider_metadata: Json | null
           refresh_token: string
           scope: string | null
           status: string
@@ -258,6 +262,7 @@ export type Database = {
           last_synced_at?: string | null
           message_scan_enabled?: boolean
           provider: string
+          provider_metadata?: Json | null
           refresh_token: string
           scope?: string | null
           status?: string
@@ -275,6 +280,7 @@ export type Database = {
           last_synced_at?: string | null
           message_scan_enabled?: boolean
           provider?: string
+          provider_metadata?: Json | null
           refresh_token?: string
           scope?: string | null
           status?: string
@@ -442,15 +448,16 @@ export type Database = {
           description: string | null
           due_date: string | null
           due_time: string | null
-          google_connection_id: string | null
-          google_task_id: string | null
+          external_task_id: string | null
           id: string
           last_seen_at: string | null
           priority: string | null
           repeat_interval: number | null
           repeat_type: string | null
           status: string | null
+          sync_connection_id: string | null
           sync_error: string | null
+          sync_provider: string | null
           synced_at: string | null
           tag_id: string | null
           title: string
@@ -463,15 +470,16 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           due_time?: string | null
-          google_connection_id?: string | null
-          google_task_id?: string | null
+          external_task_id?: string | null
           id?: string
           last_seen_at?: string | null
           priority?: string | null
           repeat_interval?: number | null
           repeat_type?: string | null
           status?: string | null
+          sync_connection_id?: string | null
           sync_error?: string | null
+          sync_provider?: string | null
           synced_at?: string | null
           tag_id?: string | null
           title: string
@@ -484,15 +492,16 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           due_time?: string | null
-          google_connection_id?: string | null
-          google_task_id?: string | null
+          external_task_id?: string | null
           id?: string
           last_seen_at?: string | null
           priority?: string | null
           repeat_interval?: number | null
           repeat_type?: string | null
           status?: string | null
+          sync_connection_id?: string | null
           sync_error?: string | null
+          sync_provider?: string | null
           synced_at?: string | null
           tag_id?: string | null
           title?: string
@@ -502,14 +511,14 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tasks_google_connection_id_fkey"
-            columns: ["google_connection_id"]
+            columns: ["sync_connection_id"]
             isOneToOne: false
             referencedRelation: "integration_connections"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "tasks_google_connection_id_fkey"
-            columns: ["google_connection_id"]
+            columns: ["sync_connection_id"]
             isOneToOne: false
             referencedRelation: "integration_connections_view"
             referencedColumns: ["id"]

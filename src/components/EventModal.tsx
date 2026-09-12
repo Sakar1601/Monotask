@@ -89,7 +89,7 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
     onClose();
   };
 
-  const isGoogleOrigin = !!event?.google_connection_id;
+  const syncedFromLabel = event?.sync_connection_id ? (event.sync_provider === 'microsoft' ? 'Outlook' : 'Google') : null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -97,8 +97,8 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
         <DialogHeader>
           <DialogTitle className="text-black dark:text-white">
             {event ? 'Edit Event' : 'Create Event'}
-            {isGoogleOrigin && (
-              <span className="ml-2 text-xs font-normal text-blue-600 dark:text-blue-400">(from Google)</span>
+            {syncedFromLabel && (
+              <span className="ml-2 text-xs font-normal text-blue-600 dark:text-blue-400">(from {syncedFromLabel})</span>
             )}
           </DialogTitle>
         </DialogHeader>

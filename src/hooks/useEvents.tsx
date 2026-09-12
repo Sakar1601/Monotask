@@ -12,8 +12,9 @@ export interface Event {
   location?: string | null;
   meeting_url?: string | null;
   tag_id?: string | null;
-  google_connection_id?: string | null;
-  google_event_id?: string | null;
+  sync_connection_id?: string | null;
+  external_event_id?: string | null;
+  sync_provider?: 'google' | 'microsoft' | null;
   synced_at?: string | null;
   sync_error?: string | null;
   created_at: string;
@@ -110,14 +111,14 @@ export const useEvents = () => {
       queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
       toast.success('Event updated successfully');
 
-      if (updatedEvent.google_connection_id && updatedEvent.google_event_id) {
+      if (updatedEvent.sync_connection_id && updatedEvent.external_event_id) {
         supabase.functions
           .invoke('push-integration-change', {
             body: {
               type: 'event',
               action: 'update',
-              connectionId: updatedEvent.google_connection_id,
-              externalId: updatedEvent.google_event_id,
+              connectionId: updatedEvent.sync_connection_id,
+              externalId: updatedEvent.external_event_id,
               changes: {
                 title: updatedEvent.title,
                 description: updatedEvent.description ?? null,
@@ -159,14 +160,14 @@ export const useEvents = () => {
       toast.success('Event deleted successfully');
 
       const snapshot = context?.deletedEventSnapshot;
-      if (snapshot?.google_connection_id && snapshot?.google_event_id) {
+      if (snapshot?.sync_connection_id && snapshot?.external_event_id) {
         supabase.functions
           .invoke('push-integration-change', {
             body: {
               type: 'event',
               action: 'delete',
-              connectionId: snapshot.google_connection_id,
-              externalId: snapshot.google_event_id,
+              connectionId: snapshot.sync_connection_id,
+              externalId: snapshot.external_event_id,
             },
           })
           .then(({ error }) => {

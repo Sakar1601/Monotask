@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { googleProvider } from "../_shared/integrations/google.ts";
+import { providers } from "../_shared/integrations/registry.ts";
 import type { ExternalEvent, ExternalTask } from "../_shared/integrations/types.ts";
 
 const WINDOW_DAYS_PAST = 1;
@@ -9,20 +9,24 @@ const WINDOW_DAYS_FUTURE = 30;
 type Connection = {
   id: string;
   user_id: string;
-  provider: "google";
+  provider: "google" | "microsoft";
   access_token: string;
   refresh_token: string;
   expires_at: string;
   calendar_sync_enabled: boolean;
   scope: string | null;
+  provider_metadata: Record<string, unknown> | null;
 };
 
-const REQUIRED_SCOPES = ["https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/tasks"];
+const REQUIRED_SCOPES: Record<Connection["provider"], string[]> = {
+  google: ["https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/tasks"],
+  microsoft: ["Calendars.ReadWrite", "Tasks.ReadWrite"],
+};
 
-function hasWriteScopes(scope: string | null): boolean {
+function hasWriteScopes(provider: Connection["provider"], scope: string | null): boolean {
   if (!scope) return false;
   const granted = scope.split(" ");
-  return REQUIRED_SCOPES.every((required) => granted.includes(required));
+  return REQUIRED_SCOPES[provider].every((required) => granted.includes(required));
 }
 
 async function ensureFreshToken(
@@ -32,7 +36,7 @@ async function ensureFreshToken(
   const expiresInMs = new Date(connection.expires_at).getTime() - Date.now();
   if (expiresInMs > 60_000) return connection.access_token;
 
-  const tokens = await googleProvider.refreshToken(connection.refresh_token);
+  const tokens = await providers[connection.provider].refreshToken(connection.refresh_token);
   await adminClient
     .from("integration_connections")
     .update({
@@ -46,7 +50,7 @@ async function ensureFreshToken(
 }
 
 async function syncConnection(adminClient: ReturnType<typeof createClient>, connection: Connection) {
-  if (!hasWriteScopes(connection.scope)) {
+  if (!hasWriteScopes(connection.provider, connection.scope)) {
     await adminClient
       .from("integration_connections")
       .update({ status: "needs_reconnect" })
@@ -57,18 +61,32 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
   // deleting rows the run did NOT touch (i.e. items no longer in Google).
   const syncStartedAt = new Date().toISOString();
   try {
+    const provider = providers[connection.provider];
     const accessToken = await ensureFreshToken(adminClient, connection);
+
+    // Providers with extra per-connection state to resolve once (Microsoft's
+    // default task-list id) resolve and cache it here, generically - this
+    // function never checks connection.provider === "microsoft" by name.
+    let providerMetadata = connection.provider_metadata;
+    if (provider.resolveProviderMetadata && !providerMetadata) {
+      providerMetadata = await provider.resolveProviderMetadata(accessToken);
+      await adminClient
+        .from("integration_connections")
+        .update({ provider_metadata: providerMetadata })
+        .eq("id", connection.id);
+    }
+
     const now = new Date();
     const windowStart = new Date(now.getTime() - WINDOW_DAYS_PAST * 86_400_000);
     const windowEnd = new Date(now.getTime() + WINDOW_DAYS_FUTURE * 86_400_000);
 
     const [events, tasks] = await Promise.all([
-      googleProvider.fetchEvents(accessToken, windowStart, windowEnd),
-      googleProvider.fetchTasks(accessToken, windowStart),
+      provider.fetchEvents(accessToken, windowStart, windowEnd),
+      provider.fetchTasks(accessToken, windowStart, providerMetadata),
     ]);
 
     await upsertEvents(adminClient, connection, accessToken, events, syncStartedAt);
-    await upsertTasks(adminClient, connection, accessToken, tasks, syncStartedAt);
+    await upsertTasks(adminClient, connection, accessToken, tasks, syncStartedAt, providerMetadata);
 
     await adminClient
       .from("integration_connections")
@@ -104,20 +122,20 @@ async function upsertEvents(
   while (true) {
     const { data: existingRows, error: existingError } = await adminClient
       .from("events")
-      .select("google_event_id, updated_at, synced_at")
-      .eq("google_connection_id", connection.id)
-      .order("google_event_id", { ascending: true })
+      .select("external_event_id, updated_at, synced_at")
+      .eq("sync_connection_id", connection.id)
+      .order("external_event_id", { ascending: true })
       .range(offset, offset + pageSize - 1);
     if (existingError) throw existingError;
     for (const row of existingRows ?? []) {
-      if (row.google_event_id) existingByExternalId.set(row.google_event_id, { updated_at: row.updated_at, synced_at: row.synced_at });
+      if (row.external_event_id) existingByExternalId.set(row.external_event_id, { updated_at: row.updated_at, synced_at: row.synced_at });
     }
     if ((existingRows?.length ?? 0) < pageSize) break;
     offset += pageSize;
   }
 
   const toUpsert: Record<string, unknown>[] = [];
-  const toTouch: string[] = []; // google_event_ids present in Google but skipped (pending local edit)
+  const toTouch: string[] = []; // external_event_ids present in Google but skipped (pending local edit)
 
   for (const e of events) {
     const existing = existingByExternalId.get(e.externalId);
@@ -128,8 +146,9 @@ async function upsertEvents(
     }
     toUpsert.push({
       user_id: connection.user_id,
-      google_connection_id: connection.id,
-      google_event_id: e.externalId,
+      sync_connection_id: connection.id,
+      external_event_id: e.externalId,
+      sync_provider: connection.provider,
       title: e.title,
       start_time: e.startTime,
       end_time: e.endTime,
@@ -141,7 +160,7 @@ async function upsertEvents(
   }
 
   if (toUpsert.length > 0) {
-    const { error } = await adminClient.from("events").upsert(toUpsert, { onConflict: "google_connection_id,google_event_id" });
+    const { error } = await adminClient.from("events").upsert(toUpsert, { onConflict: "sync_connection_id,external_event_id" });
     if (error) throw error;
   }
   if (toTouch.length > 0) {
@@ -152,8 +171,8 @@ async function upsertEvents(
     const { error } = await adminClient
       .from("events")
       .update({ last_seen_at: syncStartedAt })
-      .eq("google_connection_id", connection.id)
-      .in("google_event_id", toTouch);
+      .eq("sync_connection_id", connection.id)
+      .in("external_event_id", toTouch);
     if (error) throw error;
   }
   if (toTouch.length > 0) {
@@ -165,14 +184,14 @@ async function upsertEvents(
     // nothing else ever advances synced_at for these rows.
     const { data: pendingRows, error: pendingError } = await adminClient
       .from("events")
-      .select("id, google_event_id, title, description, start_time, end_time, location")
-      .eq("google_connection_id", connection.id)
-      .in("google_event_id", toTouch);
+      .select("id, external_event_id, title, description, start_time, end_time, location")
+      .eq("sync_connection_id", connection.id)
+      .in("external_event_id", toTouch);
     if (pendingError) throw pendingError;
     for (const row of pendingRows ?? []) {
-      if (!row.google_event_id) continue;
+      if (!row.external_event_id) continue;
       try {
-        await googleProvider.updateEvent(accessToken, row.google_event_id, {
+        await providers[connection.provider].updateEvent(accessToken, row.external_event_id, {
           title: row.title,
           description: row.description,
           startTime: row.start_time,
@@ -197,7 +216,7 @@ async function upsertEvents(
   const { error: deleteError } = await adminClient
     .from("events")
     .delete()
-    .eq("google_connection_id", connection.id)
+    .eq("sync_connection_id", connection.id)
     .or(`last_seen_at.is.null,last_seen_at.lt.${syncStartedAt}`);
   if (deleteError) throw deleteError;
 }
@@ -208,6 +227,7 @@ async function upsertTasks(
   accessToken: string,
   tasks: ExternalTask[],
   syncStartedAt: string,
+  providerMetadata: Record<string, unknown> | null,
 ) {
   // priority has no Google Tasks equivalent - the plan's upsert would
   // otherwise reset it to "medium" on every 10-minute resync, silently
@@ -226,14 +246,14 @@ async function upsertTasks(
   while (true) {
     const { data: existingTasks, error: existingError } = await adminClient
       .from("tasks")
-      .select("google_task_id, priority, updated_at, synced_at")
-      .eq("google_connection_id", connection.id)
-      .order("google_task_id", { ascending: true })
+      .select("external_task_id, priority, updated_at, synced_at")
+      .eq("sync_connection_id", connection.id)
+      .order("external_task_id", { ascending: true })
       .range(offset, offset + pageSize - 1);
     if (existingError) throw existingError;
     for (const task of existingTasks ?? []) {
-      if (task.google_task_id) {
-        existingByExternalId.set(task.google_task_id, {
+      if (task.external_task_id) {
+        existingByExternalId.set(task.external_task_id, {
           priority: task.priority,
           updated_at: task.updated_at,
           synced_at: task.synced_at,
@@ -256,8 +276,9 @@ async function upsertTasks(
     }
     toUpsert.push({
       user_id: connection.user_id,
-      google_connection_id: connection.id,
-      google_task_id: t.externalId,
+      sync_connection_id: connection.id,
+      external_task_id: t.externalId,
+      sync_provider: connection.provider,
       title: t.title,
       due_date: t.dueDate,
       status: t.status,
@@ -270,33 +291,33 @@ async function upsertTasks(
   }
 
   if (toUpsert.length > 0) {
-    const { error } = await adminClient.from("tasks").upsert(toUpsert, { onConflict: "google_connection_id,google_task_id" });
+    const { error } = await adminClient.from("tasks").upsert(toUpsert, { onConflict: "sync_connection_id,external_task_id" });
     if (error) throw error;
   }
   if (toTouch.length > 0) {
     const { error } = await adminClient
       .from("tasks")
       .update({ last_seen_at: syncStartedAt })
-      .eq("google_connection_id", connection.id)
-      .in("google_task_id", toTouch);
+      .eq("sync_connection_id", connection.id)
+      .in("external_task_id", toTouch);
     if (error) throw error;
   }
   if (toTouch.length > 0) {
     // Same retry-push self-heal as upsertEvents - see the comment there.
     const { data: pendingRows, error: pendingError } = await adminClient
       .from("tasks")
-      .select("id, google_task_id, title, due_date, status")
-      .eq("google_connection_id", connection.id)
-      .in("google_task_id", toTouch);
+      .select("id, external_task_id, title, due_date, status")
+      .eq("sync_connection_id", connection.id)
+      .in("external_task_id", toTouch);
     if (pendingError) throw pendingError;
     for (const row of pendingRows ?? []) {
-      if (!row.google_task_id) continue;
+      if (!row.external_task_id) continue;
       try {
-        await googleProvider.updateTask(accessToken, row.google_task_id, {
+        await providers[connection.provider].updateTask(accessToken, row.external_task_id, {
           title: row.title,
           dueDate: row.due_date,
           status: row.status === "completed" ? "completed" : "pending",
-        });
+        }, providerMetadata);
         await adminClient
           .from("tasks")
           .update({ synced_at: new Date().toISOString(), sync_error: null })
@@ -318,7 +339,7 @@ async function upsertTasks(
   const { error: deleteError } = await adminClient
     .from("tasks")
     .delete()
-    .eq("google_connection_id", connection.id)
+    .eq("sync_connection_id", connection.id)
     .or(`last_seen_at.is.null,last_seen_at.lt.${syncStartedAt}`);
   if (deleteError) throw deleteError;
 }
@@ -374,7 +395,7 @@ Deno.serve(async (req: Request) => {
 
     let query = adminClient
       .from("integration_connections")
-      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled, scope")
+      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled, scope, provider_metadata")
       .eq("calendar_sync_enabled", true)
       .neq("status", "disconnected");
     if (connectionId) query = query.eq("id", connectionId);

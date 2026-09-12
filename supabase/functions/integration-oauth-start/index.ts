@@ -1,7 +1,7 @@
 // supabase/functions/integration-oauth-start/index.ts
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { googleProvider } from "../_shared/integrations/google.ts";
+import { providers } from "../_shared/integrations/registry.ts";
 
 // OAUTH_CALLBACK_URL overrides the externally-reachable URL Google should
 // redirect back to. SUPABASE_URL alone is wrong for this: inside the local
@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const { provider } = await req.json();
-    if (provider !== "google") {
+    if (!providers[provider]) {
       return new Response(JSON.stringify({ error: "Unsupported provider" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
     });
     if (insertError) throw insertError;
 
-    const url = googleProvider.getAuthUrl(state, redirectUriFor(supabaseUrl));
+    const url = providers[provider].getAuthUrl(state, redirectUriFor(supabaseUrl));
 
     return new Response(JSON.stringify({ url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
