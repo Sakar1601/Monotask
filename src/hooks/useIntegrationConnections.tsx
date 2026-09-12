@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 
 export interface IntegrationConnection {
   id: string;
-  provider: 'google';
+  provider: 'google' | 'microsoft';
   status: 'connected' | 'expired' | 'error' | 'disconnected' | 'needs_reconnect';
   calendar_sync_enabled: boolean;
   message_scan_enabled: boolean;
@@ -32,16 +32,19 @@ export const useIntegrationConnections = () => {
     enabled: !!user,
   });
 
-  const connectGoogle = async () => {
+  const startOAuth = async (provider: 'google' | 'microsoft', errorMessage: string) => {
     const { data, error } = await supabase.functions.invoke('integration-oauth-start', {
-      body: { provider: 'google' },
+      body: { provider },
     });
     if (error) {
-      toast.error('Could not start Google connection');
+      toast.error(errorMessage);
       return;
     }
     window.location.href = data.url;
   };
+
+  const connectGoogle = () => startOAuth('google', 'Could not start Google connection');
+  const connectMicrosoft = () => startOAuth('microsoft', 'Could not start Microsoft connection');
 
   const disconnectMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -76,6 +79,7 @@ export const useIntegrationConnections = () => {
     connections,
     isLoading,
     connectGoogle,
+    connectMicrosoft,
     disconnect: disconnectMutation.mutate,
     syncNow: syncNowMutation.mutate,
     isSyncing: syncNowMutation.isPending,
