@@ -2,6 +2,7 @@ import { describe, it, test, expect } from 'vitest';
 import { Task } from '@/hooks/useTasks';
 import { Habit } from '@/hooks/useHabits';
 import { Tag } from '@/hooks/useTags';
+import { Event } from '@/hooks/useEvents';
 import { buildExportData, parseImportFile, ImportValidationError, MONOTASK_EXPORT_VERSION } from './dataPortability';
 
 describe('buildExportData', () => {
@@ -47,13 +48,13 @@ describe('buildExportData', () => {
 });
 
 test('buildExportData tags each task and event with its source', () => {
-  const tasks = [
-    { id: '1', title: 'Native task', description: null, due_date: null, due_time: null, priority: 'low', status: 'pending', repeat_type: 'none', repeat_interval: 1, tag_id: null, created_at: '', updated_at: '', user_id: 'u', google_connection_id: null } as any,
-    { id: '2', title: 'Synced task', description: null, due_date: null, due_time: null, priority: 'medium', status: 'pending', repeat_type: 'none', repeat_interval: 1, tag_id: null, created_at: '', updated_at: '', user_id: 'u', google_connection_id: 'conn-1' } as any,
+  const tasks: Task[] = [
+    { id: '1', title: 'Native task', priority: 'low', status: 'pending', created_at: '', updated_at: '', user_id: 'u', google_connection_id: null },
+    { id: '2', title: 'Synced task', priority: 'medium', status: 'pending', created_at: '', updated_at: '', user_id: 'u', google_connection_id: 'conn-1' },
   ];
-  const events = [
-    { id: '3', title: 'Native event', description: null, start_time: '2026-01-01T00:00:00Z', end_time: null, location: null, meeting_url: null, tag_id: null, created_at: '', updated_at: '', user_id: 'u', google_connection_id: null } as any,
-    { id: '4', title: 'Synced event', description: null, start_time: '2026-01-01T00:00:00Z', end_time: null, location: null, meeting_url: null, tag_id: null, created_at: '', updated_at: '', user_id: 'u', google_connection_id: 'conn-1' } as any,
+  const events: Event[] = [
+    { id: '3', title: 'Native event', start_time: '2026-01-01T00:00:00Z', created_at: '', updated_at: '', user_id: 'u', google_connection_id: null },
+    { id: '4', title: 'Synced event', start_time: '2026-01-01T00:00:00Z', created_at: '', updated_at: '', user_id: 'u', google_connection_id: 'conn-1' },
   ];
 
   const data = buildExportData(tasks, [], [], events);
