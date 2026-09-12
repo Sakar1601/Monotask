@@ -39,14 +39,20 @@ export interface TaskChanges {
 }
 
 export interface IntegrationProvider {
-  id: "google";
+  id: "google" | "microsoft";
   getAuthUrl(state: string, redirectUri: string): string;
   exchangeCode(code: string, redirectUri: string): Promise<TokenSet>;
   refreshToken(refreshToken: string): Promise<TokenSet>;
   fetchEvents(accessToken: string, windowStart: Date, windowEnd: Date): Promise<ExternalEvent[]>;
-  fetchTasks(accessToken: string, completedMin: Date): Promise<ExternalTask[]>;
-  updateEvent(accessToken: string, googleEventId: string, changes: EventChanges): Promise<void>;
-  deleteEvent(accessToken: string, googleEventId: string): Promise<void>;
-  updateTask(accessToken: string, googleTaskId: string, changes: TaskChanges): Promise<void>;
-  deleteTask(accessToken: string, googleTaskId: string): Promise<void>;
+  fetchTasks(accessToken: string, completedMin: Date, providerMetadata?: Record<string, unknown> | null): Promise<ExternalTask[]>;
+  updateEvent(accessToken: string, externalEventId: string, changes: EventChanges): Promise<void>;
+  deleteEvent(accessToken: string, externalEventId: string): Promise<void>;
+  updateTask(accessToken: string, externalTaskId: string, changes: TaskChanges, providerMetadata?: Record<string, unknown> | null): Promise<void>;
+  deleteTask(accessToken: string, externalTaskId: string, providerMetadata?: Record<string, unknown> | null): Promise<void>;
+  // Optional: providers with extra per-connection state to resolve once and
+  // cache (e.g. Microsoft's default task-list id) implement this. Providers
+  // without any such state (Google) simply omit it - sync-integrations and
+  // push-integration-change call it generically, by feature-detection, so
+  // neither function ever special-cases a provider by name.
+  resolveProviderMetadata?(accessToken: string): Promise<Record<string, unknown>>;
 }
