@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import '../types/deno';
 import { googleProvider, mapGoogleTask } from '../../supabase/functions/_shared/integrations/google.ts';
-
-declare global {
-  const Deno: { env: { get(name: string): string | undefined } };
-}
 
 describe('Google Tasks pull fidelity', () => {
   afterEach(() => vi.unstubAllGlobals());

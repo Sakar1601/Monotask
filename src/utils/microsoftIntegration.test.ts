@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import '../types/deno';
 import { mapMicrosoftEvent, mapMicrosoftTask, microsoftProvider } from '../../supabase/functions/_shared/integrations/microsoft.ts';
-
-declare global {
-  const Deno: { env: { get(name: string): string | undefined } };
-}
 
 describe('Microsoft mapping', () => {
   it('maps a Graph event, defaulting to UTC when no offset is present', () => {
