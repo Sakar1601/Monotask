@@ -57,7 +57,7 @@ const Settings: React.FC = () => {
         task.priority || '',
         task.due_date || '',
         task.due_time || '',
-        task.google_connection_id ? 'Google' : 'Monotask',
+        task.sync_connection_id ? 'Google' : 'Monotask',
         task.created_at
       ]));
     });
@@ -98,7 +98,7 @@ const Settings: React.FC = () => {
         event.end_time || '',
         event.location || '',
         event.meeting_url || '',
-        event.google_connection_id ? 'Google' : 'Monotask',
+        event.sync_connection_id ? 'Google' : 'Monotask',
         event.created_at
       ]));
     });

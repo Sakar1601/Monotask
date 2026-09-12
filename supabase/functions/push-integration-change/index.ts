@@ -109,8 +109,8 @@ Deno.serve(async (req: Request) => {
         await adminClient
           .from(table)
           .update({ sync_error: message })
-          .eq("google_connection_id", body.connectionId)
-          .eq(body.type === "event" ? "google_event_id" : "google_task_id", body.externalId);
+          .eq("sync_connection_id", body.connectionId)
+          .eq(body.type === "event" ? "external_event_id" : "external_task_id", body.externalId);
       }
       return new Response(JSON.stringify({ error: message }), {
         status: 502,
@@ -124,8 +124,8 @@ Deno.serve(async (req: Request) => {
       await adminClient
         .from(table)
         .update({ synced_at: now, last_seen_at: now, sync_error: null })
-        .eq("google_connection_id", body.connectionId)
-        .eq(body.type === "event" ? "google_event_id" : "google_task_id", body.externalId);
+        .eq("sync_connection_id", body.connectionId)
+        .eq(body.type === "event" ? "external_event_id" : "external_task_id", body.externalId);
     }
 
     return new Response(JSON.stringify({ success: true }), {

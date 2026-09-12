@@ -78,7 +78,7 @@ export const buildExportData = (
       repeat_type: task.repeat_type || 'none',
       repeat_interval: task.repeat_interval || 1,
       tag_name: task.tag_id ? tagNameById.get(task.tag_id) || null : null,
-      source: task.google_connection_id ? 'google' : 'monotask',
+      source: task.sync_connection_id ? 'google' : 'monotask',
     })),
     habits: habits.map((habit) => ({
       name: habit.name,
@@ -96,7 +96,7 @@ export const buildExportData = (
       location: event.location || null,
       meeting_url: event.meeting_url || null,
       tag_name: event.tag_id ? tagNameById.get(event.tag_id) || null : null,
-      source: event.google_connection_id ? 'google' : 'monotask',
+      source: event.sync_connection_id ? 'google' : 'monotask',
     })),
   };
 };

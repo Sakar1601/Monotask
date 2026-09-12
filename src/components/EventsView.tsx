@@ -57,7 +57,7 @@ const EventsView: React.FC = () => {
               <button type="button" className="flex-1 text-left" onClick={() => handleEdit(event)}>
                 <div className="flex items-center gap-2">
                   <h3 className="font-medium text-black dark:text-white">{event.title}</h3>
-                  {event.google_connection_id && (
+                  {event.sync_connection_id && (
                     <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200">
                       Google
                     </span>

@@ -21,8 +21,9 @@ export interface Task {
   updated_at: string;
   user_id: string;
   tags?: { name: string; color: string };
-  google_connection_id?: string | null;
-  google_task_id?: string | null;
+  sync_connection_id?: string | null;
+  external_task_id?: string | null;
+  sync_provider?: 'google' | 'microsoft' | null;
   synced_at?: string | null;
   sync_error?: string | null;
 }
@@ -152,14 +153,14 @@ export const useTasks = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
       toast.success('Task updated successfully');
 
-      if (updatedTask.google_connection_id && updatedTask.google_task_id) {
+      if (updatedTask.sync_connection_id && updatedTask.external_task_id) {
         supabase.functions
           .invoke('push-integration-change', {
             body: {
               type: 'task',
               action: 'update',
-              connectionId: updatedTask.google_connection_id,
-              externalId: updatedTask.google_task_id,
+              connectionId: updatedTask.sync_connection_id,
+              externalId: updatedTask.external_task_id,
               changes: {
                 title: updatedTask.title,
                 dueDate: updatedTask.due_date ?? null,
@@ -205,14 +206,14 @@ export const useTasks = () => {
       toast.success('Task deleted successfully');
 
       const snapshot = context?.deletedTaskSnapshot;
-      if (snapshot?.google_connection_id && snapshot?.google_task_id) {
+      if (snapshot?.sync_connection_id && snapshot?.external_task_id) {
         supabase.functions
           .invoke('push-integration-change', {
             body: {
               type: 'task',
               action: 'delete',
-              connectionId: snapshot.google_connection_id,
-              externalId: snapshot.google_task_id,
+              connectionId: snapshot.sync_connection_id,
+              externalId: snapshot.external_task_id,
             },
           })
           .then(({ error }) => {

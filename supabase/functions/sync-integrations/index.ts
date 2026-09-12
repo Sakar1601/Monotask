@@ -104,20 +104,20 @@ async function upsertEvents(
   while (true) {
     const { data: existingRows, error: existingError } = await adminClient
       .from("events")
-      .select("google_event_id, updated_at, synced_at")
-      .eq("google_connection_id", connection.id)
-      .order("google_event_id", { ascending: true })
+      .select("external_event_id, updated_at, synced_at")
+      .eq("sync_connection_id", connection.id)
+      .order("external_event_id", { ascending: true })
       .range(offset, offset + pageSize - 1);
     if (existingError) throw existingError;
     for (const row of existingRows ?? []) {
-      if (row.google_event_id) existingByExternalId.set(row.google_event_id, { updated_at: row.updated_at, synced_at: row.synced_at });
+      if (row.external_event_id) existingByExternalId.set(row.external_event_id, { updated_at: row.updated_at, synced_at: row.synced_at });
     }
     if ((existingRows?.length ?? 0) < pageSize) break;
     offset += pageSize;
   }
 
   const toUpsert: Record<string, unknown>[] = [];
-  const toTouch: string[] = []; // google_event_ids present in Google but skipped (pending local edit)
+  const toTouch: string[] = []; // external_event_ids present in Google but skipped (pending local edit)
 
   for (const e of events) {
     const existing = existingByExternalId.get(e.externalId);
@@ -128,8 +128,8 @@ async function upsertEvents(
     }
     toUpsert.push({
       user_id: connection.user_id,
-      google_connection_id: connection.id,
-      google_event_id: e.externalId,
+      sync_connection_id: connection.id,
+      external_event_id: e.externalId,
       title: e.title,
       start_time: e.startTime,
       end_time: e.endTime,
@@ -141,7 +141,7 @@ async function upsertEvents(
   }
 
   if (toUpsert.length > 0) {
-    const { error } = await adminClient.from("events").upsert(toUpsert, { onConflict: "google_connection_id,google_event_id" });
+    const { error } = await adminClient.from("events").upsert(toUpsert, { onConflict: "sync_connection_id,external_event_id" });
     if (error) throw error;
   }
   if (toTouch.length > 0) {
@@ -152,8 +152,8 @@ async function upsertEvents(
     const { error } = await adminClient
       .from("events")
       .update({ last_seen_at: syncStartedAt })
-      .eq("google_connection_id", connection.id)
-      .in("google_event_id", toTouch);
+      .eq("sync_connection_id", connection.id)
+      .in("external_event_id", toTouch);
     if (error) throw error;
   }
   if (toTouch.length > 0) {
@@ -165,14 +165,14 @@ async function upsertEvents(
     // nothing else ever advances synced_at for these rows.
     const { data: pendingRows, error: pendingError } = await adminClient
       .from("events")
-      .select("id, google_event_id, title, description, start_time, end_time, location")
-      .eq("google_connection_id", connection.id)
-      .in("google_event_id", toTouch);
+      .select("id, external_event_id, title, description, start_time, end_time, location")
+      .eq("sync_connection_id", connection.id)
+      .in("external_event_id", toTouch);
     if (pendingError) throw pendingError;
     for (const row of pendingRows ?? []) {
-      if (!row.google_event_id) continue;
+      if (!row.external_event_id) continue;
       try {
-        await googleProvider.updateEvent(accessToken, row.google_event_id, {
+        await googleProvider.updateEvent(accessToken, row.external_event_id, {
           title: row.title,
           description: row.description,
           startTime: row.start_time,
@@ -197,7 +197,7 @@ async function upsertEvents(
   const { error: deleteError } = await adminClient
     .from("events")
     .delete()
-    .eq("google_connection_id", connection.id)
+    .eq("sync_connection_id", connection.id)
     .or(`last_seen_at.is.null,last_seen_at.lt.${syncStartedAt}`);
   if (deleteError) throw deleteError;
 }
@@ -226,14 +226,14 @@ async function upsertTasks(
   while (true) {
     const { data: existingTasks, error: existingError } = await adminClient
       .from("tasks")
-      .select("google_task_id, priority, updated_at, synced_at")
-      .eq("google_connection_id", connection.id)
-      .order("google_task_id", { ascending: true })
+      .select("external_task_id, priority, updated_at, synced_at")
+      .eq("sync_connection_id", connection.id)
+      .order("external_task_id", { ascending: true })
       .range(offset, offset + pageSize - 1);
     if (existingError) throw existingError;
     for (const task of existingTasks ?? []) {
-      if (task.google_task_id) {
-        existingByExternalId.set(task.google_task_id, {
+      if (task.external_task_id) {
+        existingByExternalId.set(task.external_task_id, {
           priority: task.priority,
           updated_at: task.updated_at,
           synced_at: task.synced_at,
@@ -256,8 +256,8 @@ async function upsertTasks(
     }
     toUpsert.push({
       user_id: connection.user_id,
-      google_connection_id: connection.id,
-      google_task_id: t.externalId,
+      sync_connection_id: connection.id,
+      external_task_id: t.externalId,
       title: t.title,
       due_date: t.dueDate,
       status: t.status,
@@ -270,29 +270,29 @@ async function upsertTasks(
   }
 
   if (toUpsert.length > 0) {
-    const { error } = await adminClient.from("tasks").upsert(toUpsert, { onConflict: "google_connection_id,google_task_id" });
+    const { error } = await adminClient.from("tasks").upsert(toUpsert, { onConflict: "sync_connection_id,external_task_id" });
     if (error) throw error;
   }
   if (toTouch.length > 0) {
     const { error } = await adminClient
       .from("tasks")
       .update({ last_seen_at: syncStartedAt })
-      .eq("google_connection_id", connection.id)
-      .in("google_task_id", toTouch);
+      .eq("sync_connection_id", connection.id)
+      .in("external_task_id", toTouch);
     if (error) throw error;
   }
   if (toTouch.length > 0) {
     // Same retry-push self-heal as upsertEvents - see the comment there.
     const { data: pendingRows, error: pendingError } = await adminClient
       .from("tasks")
-      .select("id, google_task_id, title, due_date, status")
-      .eq("google_connection_id", connection.id)
-      .in("google_task_id", toTouch);
+      .select("id, external_task_id, title, due_date, status")
+      .eq("sync_connection_id", connection.id)
+      .in("external_task_id", toTouch);
     if (pendingError) throw pendingError;
     for (const row of pendingRows ?? []) {
-      if (!row.google_task_id) continue;
+      if (!row.external_task_id) continue;
       try {
-        await googleProvider.updateTask(accessToken, row.google_task_id, {
+        await googleProvider.updateTask(accessToken, row.external_task_id, {
           title: row.title,
           dueDate: row.due_date,
           status: row.status === "completed" ? "completed" : "pending",
@@ -318,7 +318,7 @@ async function upsertTasks(
   const { error: deleteError } = await adminClient
     .from("tasks")
     .delete()
-    .eq("google_connection_id", connection.id)
+    .eq("sync_connection_id", connection.id)
     .or(`last_seen_at.is.null,last_seen_at.lt.${syncStartedAt}`);
   if (deleteError) throw deleteError;
 }

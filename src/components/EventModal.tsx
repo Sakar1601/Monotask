@@ -89,7 +89,7 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
     onClose();
   };
 
-  const isGoogleOrigin = !!event?.google_connection_id;
+  const isGoogleOrigin = !!event?.sync_connection_id;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
