@@ -4,7 +4,7 @@
 // what recovers which user started the flow. Runs entirely on the service
 // role, since there is no user session to attach to a client.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { googleProvider } from "../_shared/integrations/google.ts";
+import { providers } from "../_shared/integrations/registry.ts";
 
 // REQUIRED SECRET: APP_ORIGIN
 //
@@ -43,18 +43,19 @@ Deno.serve(async (req: Request) => {
     // Consume the state token so it can't be replayed.
     await adminClient.from("oauth_states").delete().eq("state", state);
 
-    if (stateRow.provider !== "google") return appRedirect(req, "error");
+    const provider = providers[stateRow.provider];
+    if (!provider) return appRedirect(req, "error");
 
     // Must be byte-identical to the redirect_uri integration-oauth-start sent
-    // Google in the original authorize request - see OAUTH_CALLBACK_URL's
-    // doc comment there for why SUPABASE_URL alone isn't safe to use here.
+    // in the original authorize request - see OAUTH_CALLBACK_URL's doc
+    // comment there for why SUPABASE_URL alone isn't safe to use here.
     const redirectUri = Deno.env.get("OAUTH_CALLBACK_URL") ?? `${supabaseUrl}/functions/v1/integration-oauth-callback`;
-    const tokens = await googleProvider.exchangeCode(code, redirectUri);
+    const tokens = await provider.exchangeCode(code, redirectUri);
 
     const { error: upsertError } = await adminClient.from("integration_connections").upsert(
       {
         user_id: stateRow.user_id,
-        provider: "google",
+        provider: stateRow.provider,
         status: "connected",
         calendar_sync_enabled: true,
         access_token: tokens.accessToken,
