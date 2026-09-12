@@ -109,8 +109,16 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
     
     const taskData = {
       ...formData,
+      // The empty-string defaults of these inputs are rejected by Postgres
+      // for date/time columns (400), which would block ALL edits to a task
+      // with no due date set - coerce them the same way tag_id is.
+      due_date: formData.due_date || undefined,
+      due_time: formData.due_time || undefined,
       tag_id: formData.tag_id || undefined,
-      status: 'pending' as const,
+      // Preserve the task's existing completion state instead of resetting
+      // it to pending on every save (which, now that edits push to Google,
+      // would also re-open a completed task in the user's Google Tasks).
+      status: (task?.status ?? 'pending') as 'pending' | 'completed' | 'cancelled',
     };
 
     if (task) {

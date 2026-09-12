@@ -169,6 +169,9 @@ export const useTasks = () => {
           })
           .then(({ error }) => {
             if (error) toast.error('Saved locally, but could not sync the change to Google');
+            // Either way the row's sync_error/synced_at may have changed
+            // server-side, so refetch to show (or clear) the failure badge.
+            queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
           });
       }
     },
@@ -214,6 +217,7 @@ export const useTasks = () => {
           })
           .then(({ error }) => {
             if (error) toast.error('Deleted locally, but could not delete it in Google');
+            queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
           });
       }
     },
