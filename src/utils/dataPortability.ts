@@ -1,6 +1,7 @@
 import { Task } from '@/hooks/useTasks';
 import { Habit } from '@/hooks/useHabits';
 import { Tag } from '@/hooks/useTags';
+import { Event as EventType } from '@/hooks/useEvents';
 
 // Round-trippable export/import format. Deliberately excludes habit logs -
 // re-inserting full completion history is a lot of writes for a "restore my
@@ -23,6 +24,18 @@ export interface ExportedTask {
   repeat_type: 'none' | 'daily' | 'weekly' | 'monthly';
   repeat_interval: number;
   tag_name: string | null;
+  source: 'monotask' | 'google';
+}
+
+export interface ExportedEvent {
+  title: string;
+  description: string | null;
+  start_time: string;
+  end_time: string | null;
+  location: string | null;
+  meeting_url: string | null;
+  tag_name: string | null;
+  source: 'monotask' | 'google';
 }
 
 export interface ExportedHabit {
@@ -40,9 +53,15 @@ export interface MonotaskExport {
   tags: ExportedTag[];
   tasks: ExportedTask[];
   habits: ExportedHabit[];
+  events?: ExportedEvent[];
 }
 
-export const buildExportData = (tasks: Task[], habits: Habit[], tags: Tag[]): MonotaskExport => {
+export const buildExportData = (
+  tasks: Task[],
+  habits: Habit[],
+  tags: Tag[],
+  events: EventType[] = [],
+): MonotaskExport => {
   const tagNameById = new Map(tags.map((tag) => [tag.id, tag.name]));
 
   return {
@@ -59,6 +78,7 @@ export const buildExportData = (tasks: Task[], habits: Habit[], tags: Tag[]): Mo
       repeat_type: task.repeat_type || 'none',
       repeat_interval: task.repeat_interval || 1,
       tag_name: task.tag_id ? tagNameById.get(task.tag_id) || null : null,
+      source: task.google_connection_id ? 'google' : 'monotask',
     })),
     habits: habits.map((habit) => ({
       name: habit.name,
@@ -67,6 +87,16 @@ export const buildExportData = (tasks: Task[], habits: Habit[], tags: Tag[]): Mo
       frequency_days: habit.frequency_days || null,
       preferred_time: habit.preferred_time || null,
       tag_name: habit.tag_id ? tagNameById.get(habit.tag_id) || null : null,
+    })),
+    events: events.map((event) => ({
+      title: event.title,
+      description: event.description || null,
+      start_time: event.start_time,
+      end_time: event.end_time || null,
+      location: event.location || null,
+      meeting_url: event.meeting_url || null,
+      tag_name: event.tag_id ? tagNameById.get(event.tag_id) || null : null,
+      source: event.google_connection_id ? 'google' : 'monotask',
     })),
   };
 };
@@ -89,7 +119,8 @@ const isExportedTask = (v: unknown): v is ExportedTask => {
     ['pending', 'completed', 'cancelled'].includes(t.status) &&
     ['none', 'daily', 'weekly', 'monthly'].includes(t.repeat_type) &&
     typeof t.repeat_interval === 'number' &&
-    isNullableString(t.tag_name)
+    isNullableString(t.tag_name) &&
+    (t.source === undefined || ['monotask', 'google'].includes(t.source))
   );
 };
 

@@ -3,14 +3,10 @@ import React from 'react';
 import { Calendar, CheckCircle, Target, TrendingUp } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
-import { useExternalEvents } from '@/hooks/useExternalEvents';
-import { useExternalTasks } from '@/hooks/useExternalTasks';
 
 const Dashboard: React.FC = () => {
   const { tasks, isLoading: tasksLoading } = useTasks();
   const { habits, isLoading: habitsLoading } = useHabits();
-  const { events: externalEvents } = useExternalEvents();
-  const { externalTasks } = useExternalTasks();
 
   const isLoading = tasksLoading || habitsLoading;
 
@@ -49,11 +45,6 @@ const Dashboard: React.FC = () => {
     .slice(0, 3);
 
   const activeHabits = habits.filter(habit => habit.is_active).length;
-
-  const upcomingExternalEvents = externalEvents
-    .filter((event) => new Date(event.start_time) >= new Date(new Date().setHours(0, 0, 0, 0)))
-    .slice(0, 5);
-  const upcomingExternalTasks = externalTasks.slice(0, 5);
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 dark:bg-gray-950 min-h-screen transition-colors">
@@ -191,42 +182,6 @@ const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
-
-      {(upcomingExternalEvents.length > 0 || upcomingExternalTasks.length > 0) && (
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 transition-colors">
-          <h2 className="text-lg font-semibold text-black dark:text-white mb-4">From your connected apps</h2>
-          <div className="space-y-3">
-            {upcomingExternalEvents.map((event) => (
-              <a
-                key={event.id}
-                href={event.meeting_url ?? undefined}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                <span className="font-medium text-black dark:text-white">{event.title}</span>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {new Date(event.start_time).toLocaleString()} · Google Calendar
-                </span>
-              </a>
-            ))}
-            {upcomingExternalTasks.map((task) => (
-              <a
-                key={task.id}
-                href={task.source_url ?? undefined}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                <span className="font-medium text-black dark:text-white">{task.title}</span>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No date'} · Google Tasks
-                </span>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Quick Stats */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 transition-colors">

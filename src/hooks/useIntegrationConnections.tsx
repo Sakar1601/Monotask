@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 export interface IntegrationConnection {
   id: string;
   provider: 'google';
-  status: 'connected' | 'expired' | 'error' | 'disconnected';
+  status: 'connected' | 'expired' | 'error' | 'disconnected' | 'needs_reconnect';
   calendar_sync_enabled: boolean;
   message_scan_enabled: boolean;
   last_synced_at: string | null;
@@ -51,8 +51,8 @@ export const useIntegrationConnections = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integration-connections', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['external-events', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['external-tasks', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
       toast.success('Disconnected');
     },
     onError: () => toast.error('Failed to disconnect'),
@@ -65,8 +65,8 @@ export const useIntegrationConnections = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['integration-connections', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['external-events', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['external-tasks', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
       toast.success('Synced');
     },
     onError: () => toast.error('Sync failed'),

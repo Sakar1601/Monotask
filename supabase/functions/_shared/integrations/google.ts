@@ -1,8 +1,8 @@
 import type { ExternalEvent, ExternalTask, IntegrationProvider, TokenSet } from "./types.ts";
 
 const GOOGLE_SCOPES = [
-  "https://www.googleapis.com/auth/calendar.readonly",
-  "https://www.googleapis.com/auth/tasks.readonly",
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/tasks",
 ].join(" ");
 
 function tokenSetFromResponse(json: Record<string, unknown>, fallbackRefreshToken?: string): TokenSet {
@@ -29,6 +29,7 @@ interface GoogleTaskPayload {
   title?: string;
   due?: string;
   status?: string;
+  completed?: string;
   webViewLink?: string;
 }
 
@@ -53,6 +54,7 @@ export function mapGoogleTask(item: GoogleTaskPayload): ExternalTask | null {
     title: item.title || "(No title)",
     dueDate: item.due ? item.due.slice(0, 10) : null,
     status: item.status === "completed" ? "completed" : "pending",
+    completedAt: item.completed ?? null,
     sourceUrl: item.webViewLink ?? null,
     rawPayload: item,
   };
@@ -113,22 +115,55 @@ export const googleProvider: IntegrationProvider = {
       orderBy: "startTime",
       maxResults: "250",
     });
-    const response = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    if (!response.ok) throw new Error(`Google calendar fetch failed: ${response.status} ${await response.text()}`);
-    const json = await response.json();
-    return (json.items ?? []).map(mapGoogleEvent).filter((e: ExternalEvent | null): e is ExternalEvent => e !== null);
+    const events: ExternalEvent[] = [];
+    let pageToken: string | undefined;
+    let pageCount = 0;
+    const MAX_PAGES = 20; // guards against a misbehaving nextPageToken looping forever
+    do {
+      if (pageToken) params.set("pageToken", pageToken);
+      const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!response.ok) throw new Error(`Google calendar fetch failed: ${response.status} ${await response.text()}`);
+      const json = await response.json() as { items?: GoogleCalendarEventPayload[]; nextPageToken?: string };
+      events.push(...(json.items ?? []).map(mapGoogleEvent).filter((e): e is ExternalEvent => e !== null));
+      pageToken = json.nextPageToken;
+      pageCount++;
+    } while (pageToken && pageCount < MAX_PAGES);
+    return events;
   },
 
-  async fetchTasks(accessToken: string): Promise<ExternalTask[]> {
-    const response = await fetch(
-      "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks?showCompleted=false&maxResults=100",
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    if (!response.ok) throw new Error(`Google tasks fetch failed: ${response.status} ${await response.text()}`);
-    const json = await response.json();
-    return (json.items ?? []).map(mapGoogleTask).filter((t: ExternalTask | null): t is ExternalTask => t !== null);
+  async fetchTasks(accessToken: string, completedMin: Date): Promise<ExternalTask[]> {
+    // showCompleted+showHidden (Google Tasks hides completed tasks by
+    // default) makes completion status sync in instead of the task
+    // silently vanishing - but combined with unbounded pagination that
+    // would import a user's entire completed-task history. completedMin
+    // bounds it the same way fetchEvents is windowed, so only tasks
+    // completed within the sync window come back; still-open tasks (no
+    // completion date) are unaffected by this filter regardless of age.
+    const params = new URLSearchParams({
+      showCompleted: "true",
+      showHidden: "true",
+      maxResults: "100",
+      completedMin: completedMin.toISOString(),
+    });
+    const tasks: ExternalTask[] = [];
+    let pageToken: string | undefined;
+    let pageCount = 0;
+    const MAX_PAGES = 20; // 20 * 100 = 2,000 tasks/run ceiling, guards against a misbehaving nextPageToken looping forever
+    do {
+      if (pageToken) params.set("pageToken", pageToken);
+      const response = await fetch(
+        `https://tasks.googleapis.com/tasks/v1/lists/@default/tasks?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!response.ok) throw new Error(`Google tasks fetch failed: ${response.status} ${await response.text()}`);
+      const json = await response.json() as { items?: GoogleTaskPayload[]; nextPageToken?: string };
+      tasks.push(...(json.items ?? []).map(mapGoogleTask).filter((t): t is ExternalTask => t !== null));
+      pageToken = json.nextPageToken;
+      pageCount++;
+    } while (pageToken && pageCount < MAX_PAGES);
+    return tasks;
   },
 };

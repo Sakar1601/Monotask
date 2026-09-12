@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, test, expect } from 'vitest';
 import { Task } from '@/hooks/useTasks';
 import { Habit } from '@/hooks/useHabits';
 import { Tag } from '@/hooks/useTags';
+import { Event } from '@/hooks/useEvents';
 import { buildExportData, parseImportFile, ImportValidationError, MONOTASK_EXPORT_VERSION } from './dataPortability';
 
 describe('buildExportData', () => {
@@ -44,6 +45,24 @@ describe('buildExportData', () => {
     const result = buildExportData([], habits, tags);
     expect(result.habits[0].tag_name).toBe('Work');
   });
+});
+
+test('buildExportData tags each task and event with its source', () => {
+  const tasks: Task[] = [
+    { id: '1', title: 'Native task', priority: 'low', status: 'pending', created_at: '', updated_at: '', user_id: 'u', google_connection_id: null },
+    { id: '2', title: 'Synced task', priority: 'medium', status: 'pending', created_at: '', updated_at: '', user_id: 'u', google_connection_id: 'conn-1' },
+  ];
+  const events: Event[] = [
+    { id: '3', title: 'Native event', start_time: '2026-01-01T00:00:00Z', created_at: '', updated_at: '', user_id: 'u', google_connection_id: null },
+    { id: '4', title: 'Synced event', start_time: '2026-01-01T00:00:00Z', created_at: '', updated_at: '', user_id: 'u', google_connection_id: 'conn-1' },
+  ];
+
+  const data = buildExportData(tasks, [], [], events);
+
+  expect(data.tasks.find((t) => t.title === 'Native task')?.source).toBe('monotask');
+  expect(data.tasks.find((t) => t.title === 'Synced task')?.source).toBe('google');
+  expect(data.events?.find((e) => e.title === 'Native event')?.source).toBe('monotask');
+  expect(data.events?.find((e) => e.title === 'Synced event')?.source).toBe('google');
 });
 
 describe('parseImportFile', () => {

@@ -58,110 +58,78 @@ export type Database = {
         }
         Relationships: []
       }
-      external_events: {
+      events: {
         Row: {
-          connection_id: string
           created_at: string
+          description: string | null
           end_time: string | null
-          external_id: string
+          google_connection_id: string | null
+          google_event_id: string | null
           id: string
+          location: string | null
           meeting_url: string | null
-          raw_payload: Json | null
           start_time: string
+          sync_error: string | null
+          synced_at: string | null
+          tag_id: string | null
           title: string
           updated_at: string
+          user_id: string
         }
         Insert: {
-          connection_id: string
           created_at?: string
+          description?: string | null
           end_time?: string | null
-          external_id: string
+          google_connection_id?: string | null
+          google_event_id?: string | null
           id?: string
+          location?: string | null
           meeting_url?: string | null
-          raw_payload?: Json | null
           start_time: string
+          sync_error?: string | null
+          synced_at?: string | null
+          tag_id?: string | null
           title: string
           updated_at?: string
+          user_id: string
         }
         Update: {
-          connection_id?: string
           created_at?: string
+          description?: string | null
           end_time?: string | null
-          external_id?: string
+          google_connection_id?: string | null
+          google_event_id?: string | null
           id?: string
+          location?: string | null
           meeting_url?: string | null
-          raw_payload?: Json | null
           start_time?: string
+          sync_error?: string | null
+          synced_at?: string | null
+          tag_id?: string | null
           title?: string
           updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "external_events_connection_id_fkey"
-            columns: ["connection_id"]
+            foreignKeyName: "events_google_connection_id_fkey"
+            columns: ["google_connection_id"]
             isOneToOne: false
             referencedRelation: "integration_connections"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "external_events_connection_id_fkey"
-            columns: ["connection_id"]
+            foreignKeyName: "events_google_connection_id_fkey"
+            columns: ["google_connection_id"]
             isOneToOne: false
             referencedRelation: "integration_connections_view"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      external_tasks: {
-        Row: {
-          connection_id: string
-          created_at: string
-          due_date: string | null
-          external_id: string
-          id: string
-          raw_payload: Json | null
-          source_url: string | null
-          status: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          connection_id: string
-          created_at?: string
-          due_date?: string | null
-          external_id: string
-          id?: string
-          raw_payload?: Json | null
-          source_url?: string | null
-          status?: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          connection_id?: string
-          created_at?: string
-          due_date?: string | null
-          external_id?: string
-          id?: string
-          raw_payload?: Json | null
-          source_url?: string | null
-          status?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "external_tasks_connection_id_fkey"
-            columns: ["connection_id"]
+            foreignKeyName: "events_tag_id_fkey"
+            columns: ["tag_id"]
             isOneToOne: false
-            referencedRelation: "integration_connections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "external_tasks_connection_id_fkey"
-            columns: ["connection_id"]
-            isOneToOne: false
-            referencedRelation: "integration_connections_view"
+            referencedRelation: "tags"
             referencedColumns: ["id"]
           },
         ]
@@ -471,11 +439,15 @@ export type Database = {
           description: string | null
           due_date: string | null
           due_time: string | null
+          google_connection_id: string | null
+          google_task_id: string | null
           id: string
           priority: string | null
           repeat_interval: number | null
           repeat_type: string | null
           status: string | null
+          sync_error: string | null
+          synced_at: string | null
           tag_id: string | null
           title: string
           updated_at: string
@@ -487,11 +459,15 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           due_time?: string | null
+          google_connection_id?: string | null
+          google_task_id?: string | null
           id?: string
           priority?: string | null
           repeat_interval?: number | null
           repeat_type?: string | null
           status?: string | null
+          sync_error?: string | null
+          synced_at?: string | null
           tag_id?: string | null
           title: string
           updated_at?: string
@@ -503,17 +479,35 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           due_time?: string | null
+          google_connection_id?: string | null
+          google_task_id?: string | null
           id?: string
           priority?: string | null
           repeat_interval?: number | null
           repeat_type?: string | null
           status?: string | null
+          sync_error?: string | null
+          synced_at?: string | null
           tag_id?: string | null
           title?: string
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tasks_google_connection_id_fkey"
+            columns: ["google_connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_google_connection_id_fkey"
+            columns: ["google_connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections_view"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tasks_tag_id_fkey"
             columns: ["tag_id"]

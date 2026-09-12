@@ -2,11 +2,13 @@
 import jsPDF from 'jspdf';
 import { Task } from '@/hooks/useTasks';
 import { Habit, HabitLog } from '@/hooks/useHabits';
+import { Event } from '@/hooks/useEvents';
 
 export const exportToPDF = async (
   tasks: Task[],
   habits: Habit[],
-  logs: HabitLog[]
+  logs: HabitLog[],
+  events: Event[] = []
 ) => {
   const pdf = new jsPDF();
   let yPosition = 20;
@@ -65,8 +67,9 @@ export const exportToPDF = async (
       const status = task.status === 'completed' ? '✓' : '○';
       const dueDate = task.due_date ? ` (Due: ${task.due_date})` : '';
       const priority = task.priority ? ` [${task.priority.toUpperCase()}]` : '';
+      const source = task.google_connection_id ? ' [Google]' : '';
       
-      pdf.text(`${status} ${task.title}${priority}${dueDate}`, 25, yPosition);
+      pdf.text(`${status} ${task.title}${priority}${dueDate}${source}`, 25, yPosition);
       yPosition += lineHeight;
       
       if (task.description) {
@@ -131,6 +134,33 @@ export const exportToPDF = async (
         pdf.setFontSize(10);
         yPosition += 2;
       }
+    });
+  }
+
+  yPosition += lineHeight;
+  checkPageBreak();
+  pdf.setFontSize(14);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('Events', 20, yPosition);
+  yPosition += lineHeight;
+
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(`Total Events: ${events.length}`, 20, yPosition);
+  yPosition += lineHeight * 2;
+
+  if (events.length > 0) {
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Event Details:', 20, yPosition);
+    yPosition += lineHeight;
+    pdf.setFont('helvetica', 'normal');
+
+    events.forEach((event) => {
+      checkPageBreak();
+      const source = event.google_connection_id ? ' [Google]' : '';
+      const when = new Date(event.start_time).toLocaleString();
+      pdf.text(`${event.title}${source} (${when})`, 25, yPosition);
+      yPosition += lineHeight;
     });
   }
 
