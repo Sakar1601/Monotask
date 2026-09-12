@@ -76,6 +76,26 @@ describe('Google push mechanism', () => {
     await expect(googleProvider.deleteTask('token', 'task-1')).resolves.toBeUndefined();
   });
 
+  it('sends only the changed fields on event update, including a null end time when explicitly cleared', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await googleProvider.updateEvent('token', 'event-1', { title: 'New title', endTime: null });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain('/events/event-1');
+    expect(init.method).toBe('PATCH');
+    expect(JSON.parse(init.body)).toEqual({ summary: 'New title', end: null });
+  });
+
+  it('treats a 410 on event delete as success (already gone in Google)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 410 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(googleProvider.deleteEvent('token', 'event-1')).resolves.toBeUndefined();
+  });
+
   it('throws on a real delete failure', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('server error', { status: 500 }));
     vi.stubGlobal('fetch', fetchMock);
