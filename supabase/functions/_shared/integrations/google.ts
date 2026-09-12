@@ -117,6 +117,8 @@ export const googleProvider: IntegrationProvider = {
     });
     const events: ExternalEvent[] = [];
     let pageToken: string | undefined;
+    let pageCount = 0;
+    const MAX_PAGES = 20; // guards against a misbehaving nextPageToken looping forever
     do {
       if (pageToken) params.set("pageToken", pageToken);
       const response = await fetch(
@@ -127,18 +129,29 @@ export const googleProvider: IntegrationProvider = {
       const json = await response.json() as { items?: GoogleCalendarEventPayload[]; nextPageToken?: string };
       events.push(...(json.items ?? []).map(mapGoogleEvent).filter((e): e is ExternalEvent => e !== null));
       pageToken = json.nextPageToken;
-    } while (pageToken);
+      pageCount++;
+    } while (pageToken && pageCount < MAX_PAGES);
     return events;
   },
 
-  async fetchTasks(accessToken: string): Promise<ExternalTask[]> {
+  async fetchTasks(accessToken: string, completedMin: Date): Promise<ExternalTask[]> {
+    // showCompleted+showHidden (Google Tasks hides completed tasks by
+    // default) makes completion status sync in instead of the task
+    // silently vanishing - but combined with unbounded pagination that
+    // would import a user's entire completed-task history. completedMin
+    // bounds it the same way fetchEvents is windowed, so only tasks
+    // completed within the sync window come back; still-open tasks (no
+    // completion date) are unaffected by this filter regardless of age.
     const params = new URLSearchParams({
       showCompleted: "true",
       showHidden: "true",
       maxResults: "100",
+      completedMin: completedMin.toISOString(),
     });
     const tasks: ExternalTask[] = [];
     let pageToken: string | undefined;
+    let pageCount = 0;
+    const MAX_PAGES = 20; // 20 * 100 = 2,000 tasks/run ceiling, guards against a misbehaving nextPageToken looping forever
     do {
       if (pageToken) params.set("pageToken", pageToken);
       const response = await fetch(
@@ -149,7 +162,8 @@ export const googleProvider: IntegrationProvider = {
       const json = await response.json() as { items?: GoogleTaskPayload[]; nextPageToken?: string };
       tasks.push(...(json.items ?? []).map(mapGoogleTask).filter((t): t is ExternalTask => t !== null));
       pageToken = json.nextPageToken;
-    } while (pageToken);
+      pageCount++;
+    } while (pageToken && pageCount < MAX_PAGES);
     return tasks;
   },
 };

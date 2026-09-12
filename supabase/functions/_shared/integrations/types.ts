@@ -30,5 +30,5 @@ export interface IntegrationProvider {
   exchangeCode(code: string, redirectUri: string): Promise<TokenSet>;
   refreshToken(refreshToken: string): Promise<TokenSet>;
   fetchEvents(accessToken: string, windowStart: Date, windowEnd: Date): Promise<ExternalEvent[]>;
-  fetchTasks(accessToken: string): Promise<ExternalTask[]>;
+  fetchTasks(accessToken: string, completedMin: Date): Promise<ExternalTask[]>;
 }

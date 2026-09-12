@@ -64,7 +64,7 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
 
     const [events, tasks] = await Promise.all([
       googleProvider.fetchEvents(accessToken, windowStart, windowEnd),
-      googleProvider.fetchTasks(accessToken),
+      googleProvider.fetchTasks(accessToken, windowStart),
     ]);
 
     await upsertEvents(adminClient, connection, events, syncStartedAt);
@@ -128,6 +128,15 @@ async function upsertTasks(
   syncStartedAt: string,
 ) {
   if (tasks.length > 0) {
+    // priority has no Google Tasks equivalent - the plan's upsert would
+    // otherwise reset it to "medium" on every 10-minute resync, silently
+    // discarding a priority the user set locally. This is a local-only
+    // field lookup, not conflict resolution: no timestamp comparison, no
+    // decision to skip overwriting anything else. title/due_date/status
+    // are still fully Google-authoritative and overwritten every run, by
+    // design - this plan is pull-only, and priority is the one field
+    // Google has no concept of at all, so "preserve whatever's already
+    // there" is the only sensible default for it specifically.
     const existingPriorities = new Map<string, string>();
     const pageSize = 1_000;
     let offset = 0;

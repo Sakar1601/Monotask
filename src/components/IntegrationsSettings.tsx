@@ -12,7 +12,7 @@ const IntegrationsSettings: React.FC = () => {
     <div className="bg-card border border-border rounded-lg p-6">
       <h2 className="text-lg font-semibold text-foreground mb-4">Integrations</h2>
       <p className="text-sm text-muted-foreground mb-4">
-        Connect your Google account to see its calendar events and tasks here, read-only.
+        Connect your Google account to bring its calendar events and tasks into Monotask, fully editable here.
       </p>
 
       {isLoading ? (
