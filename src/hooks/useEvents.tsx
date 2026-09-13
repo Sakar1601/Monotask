@@ -3,6 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 
+const providerLabel = (provider?: 'google' | 'microsoft' | null) =>
+  provider === 'microsoft' ? 'Outlook' : 'Google';
+
 export interface Event {
   id: string;
   title: string;
@@ -129,7 +132,7 @@ export const useEvents = () => {
             },
           })
           .then(({ error }) => {
-            if (error) toast.error('Saved locally, but could not sync the change to Google');
+            if (error) toast.error(`Saved locally, but could not sync the change to ${providerLabel(updatedEvent.sync_provider)}`);
             // Either way the row's sync_error/synced_at may have changed
             // server-side, so refetch to show (or clear) the failure badge.
             queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
@@ -171,7 +174,7 @@ export const useEvents = () => {
             },
           })
           .then(({ error }) => {
-            if (error) toast.error('Deleted locally, but could not delete it in Google');
+            if (error) toast.error(`Deleted locally, but could not delete it in ${providerLabel(snapshot.sync_provider)}`);
             queryClient.invalidateQueries({ queryKey: ['events', user?.id] });
           });
       }

@@ -108,6 +108,22 @@ describe('Microsoft push mechanism', () => {
     expect(JSON.parse(init.body)).toEqual({ subject: 'New title', end: null });
   });
 
+  it('strips the offset from start/end times, since Graph rejects anything but a bare local literal', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await microsoftProvider.updateEvent('token', 'event-1', {
+      startTime: '2026-09-15T09:00:00+00:00',
+      endTime: '2026-09-15T09:30:00Z',
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({
+      start: { dateTime: '2026-09-15T09:00:00', timeZone: 'UTC' },
+      end: { dateTime: '2026-09-15T09:30:00', timeZone: 'UTC' },
+    });
+  });
+
   it('treats a 404 on event delete as success (already gone in Microsoft)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 404 }));
     vi.stubGlobal('fetch', fetchMock);

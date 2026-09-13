@@ -56,6 +56,16 @@ function asUtcIso(dateTime?: string): string | null {
   return dateTime.endsWith("Z") ? dateTime : `${dateTime}Z`;
 }
 
+// Graph's dateTimeTimeZone.dateTime must be a bare, offset-free literal -
+// the timeZone field is the only place the zone is conveyed. Our own
+// timestamps come from Postgres with a numeric offset (e.g. "+00:00") or
+// a trailing "Z", either of which must be stripped before sending, or
+// Graph may reject/misinterpret the value (see updateTask, which builds
+// its own bare literal for the same reason).
+function toGraphLocalDateTime(isoDateTime: string): string {
+  return isoDateTime.replace(/(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/, "");
+}
+
 export function mapMicrosoftEvent(item: GraphEventPayload): ExternalEvent | null {
   const start = asUtcIso(item.start?.dateTime);
   if (!item.id || !start) return null;
@@ -197,8 +207,8 @@ export const microsoftProvider: IntegrationProvider = {
     if (changes.description !== undefined) {
       body.body = changes.description === null ? null : { contentType: "text", content: changes.description };
     }
-    if (changes.startTime !== undefined) body.start = { dateTime: changes.startTime, timeZone: "UTC" };
-    if (changes.endTime !== undefined) body.end = changes.endTime ? { dateTime: changes.endTime, timeZone: "UTC" } : null;
+    if (changes.startTime !== undefined) body.start = { dateTime: toGraphLocalDateTime(changes.startTime), timeZone: "UTC" };
+    if (changes.endTime !== undefined) body.end = changes.endTime ? { dateTime: toGraphLocalDateTime(changes.endTime), timeZone: "UTC" } : null;
     if (changes.location !== undefined) body.location = changes.location === null ? null : { displayName: changes.location };
 
     const response = await fetch(`${GRAPH_BASE}/me/events/${encodeURIComponent(externalEventId)}`, {
