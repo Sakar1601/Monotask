@@ -24,6 +24,15 @@ export interface ExternalTask {
   rawPayload: unknown;
 }
 
+export interface ExternalMessage {
+  externalId: string;
+  source: "email" | "chat";
+  subject: string | null; // email only - null for chat
+  snippet: string; // short preview text - the only content ever sent to the model or persisted
+  sender: string | null;
+  receivedAt: string; // ISO timestamp
+}
+
 export interface EventChanges {
   title?: string;
   description?: string | null;
@@ -40,7 +49,11 @@ export interface TaskChanges {
 
 export interface IntegrationProvider {
   id: "google" | "microsoft";
-  getAuthUrl(state: string, redirectUri: string): string;
+  // extraScopes, when provided, is appended to the provider's base
+  // scope list for this one authorize request - used only when a user
+  // is enabling message-scanning for an existing connection (see
+  // messageScanScopes below), never for a fresh connect.
+  getAuthUrl(state: string, redirectUri: string, extraScopes?: string): string;
   exchangeCode(code: string, redirectUri: string): Promise<TokenSet>;
   refreshToken(refreshToken: string): Promise<TokenSet>;
   fetchEvents(accessToken: string, windowStart: Date, windowEnd: Date): Promise<ExternalEvent[]>;
@@ -62,4 +75,14 @@ export interface IntegrationProvider {
   // already-granted token that predates this feature (or one missing the
   // scope this needs) simply won't have it.
   getAccountEmail?(accessToken: string): Promise<string | null>;
+  // Optional: providers with a message source to scan implement one or
+  // both. Google has email only; Microsoft has both. scan-messages
+  // feature-detects these exactly like resolveProviderMetadata - it
+  // never checks provider.id by name.
+  fetchMessages?(accessToken: string, windowStart: Date): Promise<ExternalMessage[]>;
+  fetchChatMessages?(accessToken: string, windowStart: Date): Promise<ExternalMessage[]>;
+  // The extra OAuth scope(s) (space-separated, same format as the base
+  // scope constants) needed for fetchMessages/fetchChatMessages to
+  // work. Present exactly when at least one of those methods is.
+  messageScanScopes?: string;
 }
