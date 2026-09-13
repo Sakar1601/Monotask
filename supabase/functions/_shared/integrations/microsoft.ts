@@ -189,7 +189,6 @@ export const microsoftProvider: IntegrationProvider = {
         client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET")!,
         redirect_uri: redirectUri,
         grant_type: "authorization_code",
-        scope: MICROSOFT_SCOPES,
       }),
     });
     if (!response.ok) throw new Error(`Microsoft token exchange failed: ${response.status} ${await response.text()}`);
