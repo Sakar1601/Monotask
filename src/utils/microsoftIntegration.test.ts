@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '../types/deno';
-import { mapMicrosoftEvent, mapMicrosoftTask, microsoftProvider } from '../../supabase/functions/_shared/integrations/microsoft.ts';
+import { mapMicrosoftEvent, mapMicrosoftTask, mapOutlookMessage, mapTeamsChatMessage, microsoftProvider } from '../../supabase/functions/_shared/integrations/microsoft.ts';
 
 describe('Microsoft mapping', () => {
   it('maps a Graph event, defaulting to UTC when no offset is present', () => {
@@ -29,6 +29,57 @@ describe('Microsoft mapping', () => {
       .toMatchObject({ status: 'completed', completedAt: '2026-09-11T12:00:00.0000000Z' });
     expect(mapMicrosoftTask({ id: 'task-2', status: 'notStarted' }))
       .toMatchObject({ status: 'pending', completedAt: null });
+  });
+});
+
+describe('Microsoft message mapping', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('maps an Outlook mail message', () => {
+    expect(mapOutlookMessage({
+      id: 'mail-1',
+      subject: 'Report needed',
+      bodyPreview: 'Can you send the report by Friday?',
+      from: { emailAddress: { address: 'boss@example.com', name: 'Boss' } },
+      receivedDateTime: '2026-09-15T09:00:00Z',
+    })).toEqual({
+      externalId: 'mail-1',
+      source: 'email',
+      subject: 'Report needed',
+      snippet: 'Can you send the report by Friday?',
+      sender: 'boss@example.com',
+      receivedAt: '2026-09-15T09:00:00Z',
+    });
+  });
+
+  it('strips HTML from a Teams chat message body', () => {
+    expect(mapTeamsChatMessage({
+      id: 'chat-1',
+      from: { user: { displayName: 'Alex' } },
+      body: { content: '<p>Can you <b>review</b> the PR?</p>', contentType: 'html' },
+      createdDateTime: '2026-09-15T09:00:00Z',
+    })).toEqual({
+      externalId: 'chat-1',
+      source: 'chat',
+      subject: null,
+      snippet: 'Can you review the PR?',
+      sender: 'Alex',
+      receivedAt: '2026-09-15T09:00:00Z',
+    });
+  });
+
+  it('returns null for a message with no id', () => {
+    expect(mapOutlookMessage({ subject: 'no id' })).toBeNull();
+    expect(mapTeamsChatMessage({ body: { content: 'no id' } })).toBeNull();
+  });
+
+  it('appends extraScopes to the authorize URL when provided', () => {
+    vi.stubGlobal('Deno', { env: { get: () => 'test-value' } });
+    const url = microsoftProvider.getAuthUrl('state-1', 'https://example.com/callback', 'Mail.Read Chat.Read');
+    const scope = new URL(url).searchParams.get('scope')!;
+    expect(scope).toContain('Mail.Read');
+    expect(scope).toContain('Chat.Read');
+    expect(scope).toContain('Calendars.ReadWrite');
   });
 });
 
