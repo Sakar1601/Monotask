@@ -33,9 +33,14 @@ export const useIntegrationConnections = () => {
     enabled: !!user,
   });
 
-  const startOAuth = async (provider: 'google' | 'microsoft', errorMessage: string) => {
+  // connectionId is only passed for "Reconnect" on an existing connection -
+  // the callback then updates that exact row instead of adding a new one.
+  // Omitting it (a fresh "Connect", or "Connect another account") always
+  // creates a new connection, which is what allows more than one account
+  // per provider.
+  const startOAuth = async (provider: 'google' | 'microsoft', errorMessage: string, connectionId?: string) => {
     const { data, error } = await supabase.functions.invoke('integration-oauth-start', {
-      body: { provider },
+      body: { provider, connectionId },
     });
     if (error) {
       toast.error(errorMessage);
@@ -46,6 +51,8 @@ export const useIntegrationConnections = () => {
 
   const connectGoogle = () => startOAuth('google', 'Could not start Google connection');
   const connectMicrosoft = () => startOAuth('microsoft', 'Could not start Microsoft connection');
+  const reconnect = (provider: 'google' | 'microsoft', connectionId: string) =>
+    startOAuth(provider, `Could not reconnect ${provider === 'microsoft' ? 'Microsoft' : 'Google'}`, connectionId);
 
   const disconnectMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -81,6 +88,7 @@ export const useIntegrationConnections = () => {
     isLoading,
     connectGoogle,
     connectMicrosoft,
+    reconnect,
     disconnect: disconnectMutation.mutate,
     syncNow: syncNowMutation.mutate,
     // Which connection id is currently syncing, if any - so each provider

@@ -30,7 +30,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { provider } = await req.json();
+    const { provider, connectionId } = await req.json();
     if (!providers[provider]) {
       return new Response(JSON.stringify({ error: "Unsupported provider" }), {
         status: 400,
@@ -53,11 +53,30 @@ Deno.serve(async (req: Request) => {
 
     // Service-role client to write oauth_states, which has no client policies.
     const adminClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    // "Reconnect" on an existing connection passes its id, so the callback
+    // updates that exact row instead of inserting a new one - verify it's
+    // actually this user's own connection (and this provider's) before
+    // trusting it, since a forged id would otherwise let a caller attach
+    // their new tokens to someone else's connection row.
+    let verifiedConnectionId: string | null = null;
+    if (connectionId) {
+      const { data: existing } = await adminClient
+        .from("integration_connections")
+        .select("id")
+        .eq("id", connectionId)
+        .eq("user_id", user.id)
+        .eq("provider", provider)
+        .maybeSingle();
+      verifiedConnectionId = existing?.id ?? null;
+    }
+
     const state = crypto.randomUUID();
     const { error: insertError } = await adminClient.from("oauth_states").insert({
       state,
       user_id: user.id,
       provider,
+      connection_id: verifiedConnectionId,
     });
     if (insertError) throw insertError;
 

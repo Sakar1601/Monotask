@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: stateRow, error: stateError } = await adminClient
       .from("oauth_states")
-      .select("user_id, provider")
+      .select("user_id, provider, connection_id")
       .eq("state", state)
       .maybeSingle();
     if (stateError || !stateRow) return appRedirect(req, "error");
@@ -66,26 +66,41 @@ Deno.serve(async (req: Request) => {
       ? await provider.getAccountEmail(tokens.accessToken).catch(() => null)
       : null;
 
-    const { error: upsertError } = await adminClient.from("integration_connections").upsert(
-      {
+    // A "Reconnect" flow carries the specific row it's for, so it updates
+    // that row in place - a fresh "Connect" (or "Connect another
+    // account") has none and always inserts a new row. Multiple accounts
+    // per provider means there is no longer a (user_id, provider) key to
+    // upsert on for telling these apart.
+    const connectionFields = {
+      status: "connected",
+      calendar_sync_enabled: true,
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+      expires_at: tokens.expiresAt,
+      scope: tokens.scope,
+      // Only set on a successful fetch, so a reconnect that transiently
+      // fails to re-fetch it doesn't blank out an email this connection
+      // already had on record.
+      ...(accountEmail ? { account_email: accountEmail } : {}),
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (stateRow.connection_id) {
+      const { error: updateError } = await adminClient
+        .from("integration_connections")
+        .update(connectionFields)
+        .eq("id", stateRow.connection_id)
+        .eq("user_id", stateRow.user_id);
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertError } = await adminClient.from("integration_connections").insert({
         user_id: stateRow.user_id,
         provider: stateRow.provider,
-        status: "connected",
-        calendar_sync_enabled: true,
-        access_token: tokens.accessToken,
-        refresh_token: tokens.refreshToken,
-        expires_at: tokens.expiresAt,
-        scope: tokens.scope,
-        // Only set on a successful fetch, so a reconnect that transiently
-        // fails to re-fetch it doesn't blank out an email this connection
-        // already had on record.
-        ...(accountEmail ? { account_email: accountEmail } : {}),
-        last_error: null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,provider" },
-    );
-    if (upsertError) throw upsertError;
+        ...connectionFields,
+      });
+      if (insertError) throw insertError;
+    }
 
     return appRedirect(req, "connected", stateRow.provider);
   } catch (error) {

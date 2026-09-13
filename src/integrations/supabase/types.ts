@@ -342,24 +342,42 @@ export type Database = {
       }
       oauth_states: {
         Row: {
+          connection_id: string | null
           created_at: string
           provider: string
           state: string
           user_id: string
         }
         Insert: {
+          connection_id?: string | null
           created_at?: string
           provider: string
           state: string
           user_id: string
         }
         Update: {
+          connection_id?: string | null
           created_at?: string
           provider?: string
           state?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "oauth_states_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oauth_states_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections_view"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
