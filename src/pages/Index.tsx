@@ -14,11 +14,14 @@ import HabitsView from "@/components/HabitsView";
 import TagsView from "@/components/TagsView";
 import ProgressView from "@/components/ProgressView";
 import Settings from "@/components/Settings";
+import SuggestionsView from "@/components/SuggestionsView";
+import { useAiSuggestions } from "@/hooks/useAiSuggestions";
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const { settings } = useSettings();
+  const { pendingCount } = useAiSuggestions();
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentView, setCurrentView] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -91,6 +94,8 @@ const Index = () => {
         return <TagsView />;
       case 'progress':
         return <ProgressView />;
+      case 'suggestions':
+        return <SuggestionsView />;
       case 'settings':
         return <Settings />;
       default:
@@ -105,6 +110,7 @@ const Index = () => {
         onViewChange={setCurrentView}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        badges={{ suggestions: pendingCount }}
       />
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar

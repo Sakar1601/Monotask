@@ -10,6 +10,7 @@ import {
   Repeat,
   LogOut,
   Tag,
+  Sparkles,
   X
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,9 +20,10 @@ interface SidebarProps {
   onViewChange: (view: string) => void;
   isOpen?: boolean;
   onClose?: () => void;
+  badges?: Record<string, number>;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen = false, onClose }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen = false, onClose, badges = {} }) => {
   const { signOut } = useAuth();
 
   const menuItems = [
@@ -32,6 +34,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen = f
     { id: 'habits', label: 'Habits', icon: Repeat },
     { id: 'tags', label: 'Tags', icon: Tag },
     { id: 'progress', label: 'Progress', icon: BarChart3 },
+    { id: 'suggestions', label: 'Suggestions', icon: Sparkles },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -91,6 +94,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen = f
                       isActive ? 'text-background' : 'text-muted-foreground'
                     }`} />
                     <span className="font-medium">{item.label}</span>
+                    {!!badges[item.id] && (
+                      <span className="ml-auto mr-1 inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-semibold rounded-full bg-primary text-primary-foreground">
+                        {badges[item.id]}
+                      </span>
+                    )}
                     {isActive && <div className="ml-auto w-1 h-1 bg-background rounded-full" />}
                   </button>
                 </li>
