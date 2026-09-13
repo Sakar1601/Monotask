@@ -55,4 +55,11 @@ export interface IntegrationProvider {
   // push-integration-change call it generically, by feature-detection, so
   // neither function ever special-cases a provider by name.
   resolveProviderMetadata?(accessToken: string): Promise<Record<string, unknown>>;
+  // Optional: the signed-in account's email, shown in Settings so a user
+  // with several Google/Microsoft accounts can tell which one is
+  // connected. Best-effort - integration-oauth-callback swallows a
+  // failure here rather than blocking the connect on it, since an
+  // already-granted token that predates this feature (or one missing the
+  // scope this needs) simply won't have it.
+  getAccountEmail?(accessToken: string): Promise<string | null>;
 }

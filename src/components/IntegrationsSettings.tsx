@@ -7,7 +7,7 @@ const PROVIDER_LABELS: Record<'google' | 'microsoft', string> = { google: 'Googl
 interface ProviderConnectionRowProps {
   provider: 'google' | 'microsoft';
   connection: IntegrationConnection | undefined;
-  isSyncing: boolean;
+  syncingConnectionId: string | undefined;
   onConnect: () => void;
   onSync: (id: string) => void;
   onDisconnect: (id: string) => void;
@@ -16,12 +16,13 @@ interface ProviderConnectionRowProps {
 const ProviderConnectionRow: React.FC<ProviderConnectionRowProps> = ({
   provider,
   connection,
-  isSyncing,
+  syncingConnectionId,
   onConnect,
   onSync,
   onDisconnect,
 }) => {
   const label = PROVIDER_LABELS[provider];
+  const isSyncing = !!connection && connection.id === syncingConnectionId;
 
   if (connection?.status === 'needs_reconnect') {
     return (
@@ -43,7 +44,12 @@ const ProviderConnectionRow: React.FC<ProviderConnectionRowProps> = ({
     return (
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium text-foreground">{label}</h3>
+          <h3 className="font-medium text-foreground">
+            {label}
+            {connection.account_email && (
+              <span className="ml-2 font-normal text-sm text-muted-foreground">{connection.account_email}</span>
+            )}
+          </h3>
           <p className="text-sm text-muted-foreground">
             {connection.status === 'connected'
               ? connection.last_synced_at
@@ -81,7 +87,7 @@ const ProviderConnectionRow: React.FC<ProviderConnectionRowProps> = ({
 };
 
 const IntegrationsSettings: React.FC = () => {
-  const { connections, isLoading, connectGoogle, connectMicrosoft, disconnect, syncNow, isSyncing } = useIntegrationConnections();
+  const { connections, isLoading, connectGoogle, connectMicrosoft, disconnect, syncNow, syncingConnectionId } = useIntegrationConnections();
   const googleConnection = connections.find((c) => c.provider === 'google');
   const microsoftConnection = connections.find((c) => c.provider === 'microsoft');
 
@@ -99,7 +105,7 @@ const IntegrationsSettings: React.FC = () => {
           <ProviderConnectionRow
             provider="google"
             connection={googleConnection}
-            isSyncing={isSyncing}
+            syncingConnectionId={syncingConnectionId}
             onConnect={connectGoogle}
             onSync={syncNow}
             onDisconnect={disconnect}
@@ -108,7 +114,7 @@ const IntegrationsSettings: React.FC = () => {
             <ProviderConnectionRow
               provider="microsoft"
               connection={microsoftConnection}
-              isSyncing={isSyncing}
+              syncingConnectionId={syncingConnectionId}
               onConnect={connectMicrosoft}
               onSync={syncNow}
               onDisconnect={disconnect}

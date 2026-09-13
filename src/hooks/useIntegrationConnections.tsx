@@ -12,6 +12,7 @@ export interface IntegrationConnection {
   last_synced_at: string | null;
   last_scanned_at: string | null;
   last_error: string | null;
+  account_email: string | null;
 }
 
 export const useIntegrationConnections = () => {
@@ -24,7 +25,7 @@ export const useIntegrationConnections = () => {
       if (!user) return [];
       const { data, error } = await supabase
         .from('integration_connections_view')
-        .select('id, provider, status, calendar_sync_enabled, message_scan_enabled, last_synced_at, last_scanned_at, last_error')
+        .select('id, provider, status, calendar_sync_enabled, message_scan_enabled, last_synced_at, last_scanned_at, last_error, account_email')
         .neq('status', 'disconnected');
       if (error) throw error;
       return data as IntegrationConnection[];
@@ -82,6 +83,9 @@ export const useIntegrationConnections = () => {
     connectMicrosoft,
     disconnect: disconnectMutation.mutate,
     syncNow: syncNowMutation.mutate,
-    isSyncing: syncNowMutation.isPending,
+    // Which connection id is currently syncing, if any - so each provider
+    // row can show its own "Syncing..." state instead of both rows
+    // reacting to any sync, regardless of which one was clicked.
+    syncingConnectionId: syncNowMutation.isPending ? syncNowMutation.variables : undefined,
   };
 };

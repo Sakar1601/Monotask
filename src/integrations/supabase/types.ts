@@ -235,6 +235,7 @@ export type Database = {
       integration_connections: {
         Row: {
           access_token: string
+          account_email: string | null
           calendar_sync_enabled: boolean
           created_at: string
           expires_at: string
@@ -253,6 +254,7 @@ export type Database = {
         }
         Insert: {
           access_token: string
+          account_email?: string | null
           calendar_sync_enabled?: boolean
           created_at?: string
           expires_at: string
@@ -271,6 +273,7 @@ export type Database = {
         }
         Update: {
           access_token?: string
+          account_email?: string | null
           calendar_sync_enabled?: boolean
           created_at?: string
           expires_at?: string
@@ -536,6 +539,7 @@ export type Database = {
     Views: {
       integration_connections_view: {
         Row: {
+          account_email: string | null
           calendar_sync_enabled: boolean | null
           created_at: string | null
           expires_at: string | null
@@ -551,6 +555,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          account_email?: string | null
           calendar_sync_enabled?: boolean | null
           created_at?: string | null
           expires_at?: string | null
@@ -566,6 +571,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          account_email?: string | null
           calendar_sync_enabled?: boolean | null
           created_at?: string | null
           expires_at?: string | null

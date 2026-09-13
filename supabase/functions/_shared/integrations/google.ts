@@ -3,6 +3,9 @@ import type { EventChanges, ExternalEvent, ExternalTask, IntegrationProvider, Ta
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/tasks",
+  // Only used for getAccountEmail below (which account is connected, shown
+  // in Settings) - not required for any calendar/task sync functionality.
+  "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 
 function tokenSetFromResponse(json: Record<string, unknown>, fallbackRefreshToken?: string): TokenSet {
@@ -223,5 +226,14 @@ export const googleProvider: IntegrationProvider = {
     if (!response.ok && response.status !== 410) {
       throw new Error(`Google task delete failed: ${response.status} ${await response.text()}`);
     }
+  },
+
+  async getAccountEmail(accessToken: string): Promise<string | null> {
+    const response = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) return null;
+    const json = await response.json() as { email?: string };
+    return json.email ?? null;
   },
 };

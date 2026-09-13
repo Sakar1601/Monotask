@@ -267,4 +267,15 @@ export const microsoftProvider: IntegrationProvider = {
       throw new Error(`Microsoft task delete failed: ${response.status} ${await response.text()}`);
     }
   },
+
+  async getAccountEmail(accessToken: string): Promise<string | null> {
+    // User.Read is granted by default to every app registration, so this
+    // needs no scope beyond what MICROSOFT_SCOPES already requests.
+    const response = await fetch(`${GRAPH_BASE}/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) return null;
+    const json = await response.json() as { mail?: string; userPrincipalName?: string };
+    return json.mail ?? json.userPrincipalName ?? null;
+  },
 };

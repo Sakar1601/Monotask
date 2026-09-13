@@ -58,6 +58,14 @@ Deno.serve(async (req: Request) => {
     const redirectUri = Deno.env.get("OAUTH_CALLBACK_URL") ?? `${supabaseUrl}/functions/v1/integration-oauth-callback`;
     const tokens = await provider.exchangeCode(code, redirectUri);
 
+    // Best-effort - shown in Settings so a user can tell which account is
+    // connected, but never blocks the connect itself (e.g. a scope that
+    // predates this feature, or a transient failure, just means no email
+    // shows up for this connection).
+    const accountEmail = provider.getAccountEmail
+      ? await provider.getAccountEmail(tokens.accessToken).catch(() => null)
+      : null;
+
     const { error: upsertError } = await adminClient.from("integration_connections").upsert(
       {
         user_id: stateRow.user_id,
@@ -68,6 +76,10 @@ Deno.serve(async (req: Request) => {
         refresh_token: tokens.refreshToken,
         expires_at: tokens.expiresAt,
         scope: tokens.scope,
+        // Only set on a successful fetch, so a reconnect that transiently
+        // fails to re-fetch it doesn't blank out an email this connection
+        // already had on record.
+        ...(accountEmail ? { account_email: accountEmail } : {}),
         last_error: null,
         updated_at: new Date().toISOString(),
       },
