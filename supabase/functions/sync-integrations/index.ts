@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { providers } from "../_shared/integrations/registry.ts";
 import type { ExternalEvent, ExternalTask } from "../_shared/integrations/types.ts";
+import { ensureFreshToken } from "../_shared/integrations/tokenRefresh.ts";
 
 const WINDOW_DAYS_PAST = 1;
 const WINDOW_DAYS_FUTURE = 30;
@@ -28,26 +29,6 @@ function hasWriteScopes(provider: Connection["provider"], scope: string | null):
   if (!scope) return false;
   const granted = scope.split(" ");
   return REQUIRED_SCOPES[provider].every((required) => granted.includes(required));
-}
-
-async function ensureFreshToken(
-  adminClient: ReturnType<typeof createClient>,
-  connection: Connection,
-): Promise<string> {
-  const expiresInMs = new Date(connection.expires_at).getTime() - Date.now();
-  if (expiresInMs > 60_000) return connection.access_token;
-
-  const tokens = await providers[connection.provider].refreshToken(connection.refresh_token);
-  await adminClient
-    .from("integration_connections")
-    .update({
-      access_token: tokens.accessToken,
-      refresh_token: tokens.refreshToken || connection.refresh_token,
-      expires_at: tokens.expiresAt,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", connection.id);
-  return tokens.accessToken;
 }
 
 async function syncConnection(adminClient: ReturnType<typeof createClient>, connection: Connection) {
