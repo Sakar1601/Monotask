@@ -21,12 +21,20 @@ export interface RescheduleSuggestionPayload {
   reasoning: string;
 }
 
-export interface AiSuggestion {
+interface AiSuggestionBase {
   id: string;
-  kind: 'task' | 'reschedule';
-  payload: TaskSuggestionPayload | RescheduleSuggestionPayload;
   created_at: string;
 }
+
+export type AiSuggestion =
+  | (AiSuggestionBase & {
+      kind: 'task';
+      payload: TaskSuggestionPayload;
+    })
+  | (AiSuggestionBase & {
+      kind: 'reschedule';
+      payload: RescheduleSuggestionPayload;
+    });
 
 export const useAiSuggestions = () => {
   const { user } = useAuth();

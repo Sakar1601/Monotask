@@ -75,6 +75,31 @@ describe('useAiSuggestions', () => {
     expect(order).toHaveBeenCalledWith('created_at', { ascending: false });
   });
 
+  it('narrows each payload from the suggestion kind', () => {
+    const rescheduleSuggestion: AiSuggestion = {
+      id: 'suggestion-2',
+      kind: 'reschedule',
+      payload: {
+        event_id: 'event-1',
+        other_event_id: 'event-2',
+        current_start_time: '2026-09-15T09:00:00Z',
+        current_end_time: null,
+        suggested_start_time: '2026-09-15T10:00:00Z',
+        suggested_end_time: '2026-09-15T11:00:00Z',
+        reasoning: 'The later time avoids the conflict.',
+      },
+      created_at: '2026-09-13T12:01:00Z',
+    };
+
+    const taskTitle = suggestion.kind === 'task' ? suggestion.payload.title : suggestion.payload.reasoning;
+    const rescheduleReasoning = rescheduleSuggestion.kind === 'reschedule'
+      ? rescheduleSuggestion.payload.reasoning
+      : rescheduleSuggestion.payload.title;
+
+    expect(taskTitle).toBe('Send report');
+    expect(rescheduleReasoning).toBe('The later time avoids the conflict.');
+  });
+
   it('marks accepted and dismissed suggestions, invalidating pending results', async () => {
     const eq = vi.fn().mockResolvedValue({ error: null });
     const update = vi.fn().mockReturnValue({ eq });
