@@ -16,6 +16,7 @@ type Connection = {
   calendar_sync_enabled: boolean;
   scope: string | null;
   provider_metadata: Record<string, unknown> | null;
+  account_email: string | null;
 };
 
 const REQUIRED_SCOPES: Record<Connection["provider"], string[]> = {
@@ -74,6 +75,21 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
         .from("integration_connections")
         .update({ provider_metadata: providerMetadata })
         .eq("id", connection.id);
+    }
+
+    // Backfills account_email for connections made before this field
+    // existed (or that didn't have the scope it needs yet - only ever
+    // succeeds once that connection has been reconnected). Best-effort:
+    // getAccountEmail already returns null rather than throwing on
+    // failure, so this never blocks the actual sync below.
+    if (!connection.account_email && provider.getAccountEmail) {
+      const accountEmail = await provider.getAccountEmail(accessToken);
+      if (accountEmail) {
+        await adminClient
+          .from("integration_connections")
+          .update({ account_email: accountEmail })
+          .eq("id", connection.id);
+      }
     }
 
     const now = new Date();
@@ -395,7 +411,7 @@ Deno.serve(async (req: Request) => {
 
     let query = adminClient
       .from("integration_connections")
-      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled, scope, provider_metadata")
+      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled, scope, provider_metadata, account_email")
       .eq("calendar_sync_enabled", true)
       .neq("status", "disconnected");
     if (connectionId) query = query.eq("id", connectionId);

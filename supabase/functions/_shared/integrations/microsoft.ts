@@ -1,6 +1,10 @@
 import type { EventChanges, ExternalEvent, ExternalTask, IntegrationProvider, TaskChanges, TokenSet } from "./types.ts";
 
-const MICROSOFT_SCOPES = "offline_access Calendars.ReadWrite Tasks.ReadWrite";
+// User.Read is a default permission on every app registration, but that
+// only means Azure lets an app request it without extra admin consent -
+// it still has to be listed here explicitly, or the issued token's scope
+// won't include it and /me (getAccountEmail) 401s.
+const MICROSOFT_SCOPES = "offline_access Calendars.ReadWrite Tasks.ReadWrite User.Read";
 
 // The `common` tenant endpoint accepts both personal Microsoft accounts and
 // work/school (Azure AD) accounts through the same authorize/token URLs -
@@ -274,7 +278,10 @@ export const microsoftProvider: IntegrationProvider = {
     const response = await fetch(`${GRAPH_BASE}/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.error(`Microsoft getAccountEmail failed: ${response.status} ${await response.text()}`);
+      return null;
+    }
     const json = await response.json() as { mail?: string; userPrincipalName?: string };
     return json.mail ?? json.userPrincipalName ?? null;
   },

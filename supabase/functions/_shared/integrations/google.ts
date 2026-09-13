@@ -232,7 +232,10 @@ export const googleProvider: IntegrationProvider = {
     const response = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.error(`Google getAccountEmail failed: ${response.status} ${await response.text()}`);
+      return null;
+    }
     const json = await response.json() as { email?: string };
     return json.email ?? null;
   },
