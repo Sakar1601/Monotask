@@ -7,7 +7,11 @@ vi.hoisted(() => {
 vi.mock('npm:@supabase/supabase-js@2', () => ({ createClient: vi.fn() }));
 vi.mock('https://esm.sh/@anthropic-ai/sdk@0.122.0', () => ({ default: vi.fn() }));
 
-import { findOverlappingPairs, type EventForConflictCheck } from '../../supabase/functions/detect-conflicts/index.ts';
+import {
+  findOverlappingPairs,
+  isValidRescheduleSuggestion,
+  type EventForConflictCheck,
+} from '../../supabase/functions/detect-conflicts/index.ts';
 
 const event = (id: string, start: string, end: string | null): EventForConflictCheck => ({
   id,
@@ -53,6 +57,14 @@ describe('findOverlappingPairs', () => {
     expect(pairs).toHaveLength(0);
   });
 
+  it('does not flag a zero-duration event contained within another event', () => {
+    const pairs = findOverlappingPairs([
+      event('a', '2026-09-15T09:00:00Z', '2026-09-15T11:00:00Z'),
+      event('b', '2026-09-15T10:00:00Z', null),
+    ]);
+    expect(pairs).toHaveLength(0);
+  });
+
   it('flags all three pairs in a three-way overlap', () => {
     const pairs = findOverlappingPairs([
       event('a', '2026-09-15T09:00:00Z', '2026-09-15T11:00:00Z'),
@@ -60,5 +72,47 @@ describe('findOverlappingPairs', () => {
       event('c', '2026-09-15T10:30:00Z', '2026-09-15T11:30:00Z'),
     ]);
     expect(pairs).toHaveLength(3);
+  });
+});
+
+describe('isValidRescheduleSuggestion', () => {
+  const eventA = event('a', '2026-09-15T09:00:00Z', '2026-09-15T10:00:00Z');
+  const eventB = event('b', '2026-09-15T10:00:00Z', '2026-09-15T11:00:00Z');
+  const sameDayEvents = [eventA, eventB, event('c', '2026-09-15T13:00:00Z', '2026-09-15T14:00:00Z')];
+
+  it('accepts an ISO suggestion that is after the day schedule', () => {
+    expect(isValidRescheduleSuggestion({
+      event_id_to_move: 'a',
+      suggested_start_time: '2026-09-15T14:00:00Z',
+      suggested_end_time: '2026-09-15T15:00:00Z',
+      reasoning: 'This time is free.',
+    }, eventA, eventB, sameDayEvents)).toBe(true);
+  });
+
+  it('rejects date-parseable timestamps that are not strict ISO timestamps', () => {
+    expect(isValidRescheduleSuggestion({
+      event_id_to_move: 'a',
+      suggested_start_time: '2026-09-15 14:00:00Z',
+      suggested_end_time: '2026-09-15 15:00:00Z',
+      reasoning: 'This time is free.',
+    }, eventA, eventB, sameDayEvents)).toBe(false);
+  });
+
+  it('rejects a suggested range whose end is not after its start', () => {
+    expect(isValidRescheduleSuggestion({
+      event_id_to_move: 'a',
+      suggested_start_time: '2026-09-15T15:00:00Z',
+      suggested_end_time: '2026-09-15T14:00:00Z',
+      reasoning: 'This time is free.',
+    }, eventA, eventB, sameDayEvents)).toBe(false);
+  });
+
+  it('rejects a suggestion that collides with another event on the same day', () => {
+    expect(isValidRescheduleSuggestion({
+      event_id_to_move: 'a',
+      suggested_start_time: '2026-09-15T13:30:00Z',
+      suggested_end_time: '2026-09-15T14:30:00Z',
+      reasoning: 'This time is free.',
+    }, eventA, eventB, sameDayEvents)).toBe(false);
   });
 });
