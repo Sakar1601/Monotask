@@ -18,12 +18,17 @@ import { providers } from "../_shared/integrations/registry.ts";
 // connect redirects to https://<project>.supabase.co/app - a 404. The
 // fallback exists only so quick local testing works without configuration,
 // where landing on a 404 after consent is harmless.
-function appRedirect(req: Request, status: "connected" | "error"): Response {
+function appRedirect(req: Request, status: "connected" | "error", provider?: string): Response {
   const origin = Deno.env.get("APP_ORIGIN") ?? new URL(req.url).origin;
-  return Response.redirect(`${origin}/app?integration=${status}`, 302);
+  const params = new URLSearchParams({ integration: status });
+  if (provider) params.set("provider", provider);
+  return Response.redirect(`${origin}/app?${params.toString()}`, 302);
 }
 
 Deno.serve(async (req: Request) => {
+  // Hoisted so the catch block can still name the provider in its error
+  // redirect if the failure happened after the state row was resolved.
+  let providerId: string | undefined;
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
@@ -39,6 +44,7 @@ Deno.serve(async (req: Request) => {
       .eq("state", state)
       .maybeSingle();
     if (stateError || !stateRow) return appRedirect(req, "error");
+    providerId = stateRow.provider;
 
     // Consume the state token so it can't be replayed.
     await adminClient.from("oauth_states").delete().eq("state", state);
@@ -69,9 +75,9 @@ Deno.serve(async (req: Request) => {
     );
     if (upsertError) throw upsertError;
 
-    return appRedirect(req, "connected");
+    return appRedirect(req, "connected", stateRow.provider);
   } catch (error) {
     console.error("integration-oauth-callback error:", error);
-    return appRedirect(req, "error");
+    return appRedirect(req, "error", providerId);
   }
 });

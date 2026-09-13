@@ -38,16 +38,19 @@ const Index = () => {
     }
   }, [user, loading, navigate]);
 
-  // The OAuth callback function redirects back here with ?integration=connected
-  // or ?integration=error. Surface the outcome, then strip the param so a
-  // refresh doesn't re-fire the toast.
+  // The OAuth callback function redirects back here with
+  // ?integration=connected&provider=google (or =microsoft), or
+  // ?integration=error(&provider=...). Surface the outcome, then strip the
+  // params so a refresh doesn't re-fire the toast.
   useEffect(() => {
     const integration = searchParams.get('integration');
     if (!integration) return;
+    const provider = searchParams.get('provider');
+    const label = provider === 'microsoft' ? 'Microsoft' : provider === 'google' ? 'Google' : 'the integration';
     if (integration === 'connected') {
-      toast.success('Google connected!');
+      toast.success(`${label} connected!`);
     } else {
-      toast.error('Failed to connect Google. Please try again.');
+      toast.error(`Failed to connect ${label}. Please try again.`);
     }
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams]);
