@@ -34,6 +34,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_suggestions: {
+        Row: {
+          connection_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          payload: Json
+          status: string
+          user_id: string
+        }
+        Insert: {
+          connection_id?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          payload: Json
+          status?: string
+          user_id: string
+        }
+        Update: {
+          connection_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          payload?: Json
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_suggestions_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_suggestions_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_usage: {
         Row: {
           call_count: number
@@ -345,6 +390,7 @@ export type Database = {
           connection_id: string | null
           created_at: string
           provider: string
+          requesting_message_scan: boolean
           state: string
           user_id: string
         }
@@ -352,6 +398,7 @@ export type Database = {
           connection_id?: string | null
           created_at?: string
           provider: string
+          requesting_message_scan?: boolean
           state: string
           user_id: string
         }
@@ -359,6 +406,7 @@ export type Database = {
           connection_id?: string | null
           created_at?: string
           provider?: string
+          requesting_message_scan?: boolean
           state?: string
           user_id?: string
         }
@@ -608,10 +656,19 @@ export type Database = {
       }
     }
     Functions: {
-      check_and_increment_ai_usage: {
-        Args: { p_daily_limit: number; p_feature: string }
-        Returns: boolean
-      }
+      check_and_increment_ai_usage:
+        | {
+            Args: { p_daily_limit: number; p_feature: string }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              p_daily_limit: number
+              p_feature: string
+              p_user_id?: string
+            }
+            Returns: boolean
+          }
     }
     Enums: {
       [_ in never]: never
