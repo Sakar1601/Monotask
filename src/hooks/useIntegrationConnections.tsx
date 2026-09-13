@@ -38,9 +38,14 @@ export const useIntegrationConnections = () => {
   // Omitting it (a fresh "Connect", or "Connect another account") always
   // creates a new connection, which is what allows more than one account
   // per provider.
-  const startOAuth = async (provider: 'google' | 'microsoft', errorMessage: string, connectionId?: string) => {
+  const startOAuth = async (
+    provider: 'google' | 'microsoft',
+    errorMessage: string,
+    connectionId?: string,
+    requestMessageScanScopes?: boolean,
+  ) => {
     const { data, error } = await supabase.functions.invoke('integration-oauth-start', {
-      body: { provider, connectionId },
+      body: { provider, connectionId, requestMessageScanScopes },
     });
     if (error) {
       toast.error(errorMessage);
@@ -53,6 +58,35 @@ export const useIntegrationConnections = () => {
   const connectMicrosoft = () => startOAuth('microsoft', 'Could not start Microsoft connection');
   const reconnect = (provider: 'google' | 'microsoft', connectionId: string) =>
     startOAuth(provider, `Could not reconnect ${provider === 'microsoft' ? 'Microsoft' : 'Google'}`, connectionId);
+
+  // Turning scanning ON requires re-consenting with the extra scope, so
+  // it goes through the same OAuth round-trip as reconnect - the
+  // callback flips message_scan_enabled itself once that scope is
+  // actually granted (see integration-oauth-callback). Turning it OFF
+  // needs no reconnect: it's just narrowing what Monotask *uses* the
+  // existing grant for, not revoking anything.
+  const toggleMessageScan = (connection: IntegrationConnection) => {
+    if (connection.message_scan_enabled) {
+      supabase
+        .from('integration_connections')
+        .update({ message_scan_enabled: false })
+        .eq('id', connection.id)
+        .then(({ error }) => {
+          if (error) {
+            toast.error('Could not disable message scanning');
+            return;
+          }
+          queryClient.invalidateQueries({ queryKey: ['integration-connections', user?.id] });
+        });
+    } else {
+      startOAuth(
+        connection.provider,
+        `Could not enable message scanning for ${connection.provider === 'microsoft' ? 'Microsoft' : 'Google'}`,
+        connection.id,
+        true,
+      );
+    }
+  };
 
   const disconnectMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -89,6 +123,7 @@ export const useIntegrationConnections = () => {
     connectGoogle,
     connectMicrosoft,
     reconnect,
+    toggleMessageScan,
     disconnect: disconnectMutation.mutate,
     syncNow: syncNowMutation.mutate,
     // Which connection id is currently syncing, if any - so each provider

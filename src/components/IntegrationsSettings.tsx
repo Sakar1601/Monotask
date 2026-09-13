@@ -11,9 +11,18 @@ interface ConnectionRowProps {
   onReconnect: (id: string) => void;
   onSync: (id: string) => void;
   onDisconnect: (id: string) => void;
+  onToggleMessageScan: (connection: IntegrationConnection) => void;
 }
 
-const ConnectionRow: React.FC<ConnectionRowProps> = ({ label, connection, isSyncing, onReconnect, onSync, onDisconnect }) => {
+const ConnectionRow: React.FC<ConnectionRowProps> = ({
+  label,
+  connection,
+  isSyncing,
+  onReconnect,
+  onSync,
+  onDisconnect,
+  onToggleMessageScan,
+}) => {
   if (connection.status === 'needs_reconnect') {
     return (
       <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-800 rounded-md">
@@ -51,6 +60,15 @@ const ConnectionRow: React.FC<ConnectionRowProps> = ({ label, connection, isSync
               : 'Connected, not yet synced'
             : `Status: ${connection.status}${connection.last_error ? ` — ${connection.last_error}` : ''}`}
         </p>
+        <label className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={connection.message_scan_enabled}
+            onChange={() => onToggleMessageScan(connection)}
+            className="h-4 w-4"
+          />
+          Scan messages for task suggestions
+        </label>
       </div>
       <div className="flex gap-2">
         <Button variant="outline" size="sm" disabled={isSyncing} onClick={() => onSync(connection.id)}>
@@ -77,6 +95,7 @@ interface ProviderSectionProps {
   onReconnect: (id: string) => void;
   onSync: (id: string) => void;
   onDisconnect: (id: string) => void;
+  onToggleMessageScan: (connection: IntegrationConnection) => void;
 }
 
 const ProviderSection: React.FC<ProviderSectionProps> = ({
@@ -87,6 +106,7 @@ const ProviderSection: React.FC<ProviderSectionProps> = ({
   onReconnect,
   onSync,
   onDisconnect,
+  onToggleMessageScan,
 }) => {
   const label = PROVIDER_LABELS[provider];
 
@@ -113,6 +133,7 @@ const ProviderSection: React.FC<ProviderSectionProps> = ({
           onReconnect={onReconnect}
           onSync={onSync}
           onDisconnect={onDisconnect}
+          onToggleMessageScan={onToggleMessageScan}
         />
       ))}
       <Button variant="ghost" size="sm" onClick={onConnect}>
@@ -123,7 +144,7 @@ const ProviderSection: React.FC<ProviderSectionProps> = ({
 };
 
 const IntegrationsSettings: React.FC = () => {
-  const { connections, isLoading, connectGoogle, connectMicrosoft, reconnect, disconnect, syncNow, syncingConnectionId } =
+  const { connections, isLoading, connectGoogle, connectMicrosoft, reconnect, toggleMessageScan, disconnect, syncNow, syncingConnectionId } =
     useIntegrationConnections();
   const googleConnections = connections.filter((c) => c.provider === 'google');
   const microsoftConnections = connections.filter((c) => c.provider === 'microsoft');
@@ -147,6 +168,7 @@ const IntegrationsSettings: React.FC = () => {
             onReconnect={(id) => reconnect('google', id)}
             onSync={syncNow}
             onDisconnect={disconnect}
+            onToggleMessageScan={toggleMessageScan}
           />
           <div className="border-t border-border pt-4">
             <ProviderSection
@@ -157,6 +179,7 @@ const IntegrationsSettings: React.FC = () => {
               onReconnect={(id) => reconnect('microsoft', id)}
               onSync={syncNow}
               onDisconnect={disconnect}
+              onToggleMessageScan={toggleMessageScan}
             />
           </div>
         </div>
