@@ -76,7 +76,7 @@ describe('SuggestionsView', () => {
     });
   });
 
-  it('updates the event before accepting a reschedule suggestion', () => {
+  it('accepts a reschedule suggestion only after its event update succeeds', () => {
     useAiSuggestions.mockReturnValue({
       suggestions: [{ id: 'reschedule-suggestion', kind: 'reschedule', payload: reschedulePayload }],
       isLoading: false,
@@ -91,8 +91,27 @@ describe('SuggestionsView', () => {
       id: 'event-1',
       start_time: '2026-09-15T10:00:00Z',
       end_time: '2026-09-15T11:00:00Z',
-    });
+    }, expect.objectContaining({ onSuccess: expect.any(Function) }));
+    expect(accept).not.toHaveBeenCalled();
+
+    updateEvent.mock.calls[0][1].onSuccess();
+
     expect(accept).toHaveBeenCalledWith('reschedule-suggestion');
+  });
+
+  it('keeps a reschedule suggestion pending when its event update fails', () => {
+    useAiSuggestions.mockReturnValue({
+      suggestions: [{ id: 'reschedule-suggestion', kind: 'reschedule', payload: reschedulePayload }],
+      isLoading: false,
+      accept,
+      dismiss,
+    });
+    const view = SuggestionsView({});
+
+    findButton(view, 'Accept').props.onClick();
+    updateEvent.mock.calls[0][1].onError();
+
+    expect(accept).not.toHaveBeenCalled();
   });
 
   it('marks a reviewed task suggestion accepted when its modal closes', () => {

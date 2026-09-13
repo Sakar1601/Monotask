@@ -19,8 +19,10 @@ const SuggestionsView: React.FC = () => {
       id: payload.event_id,
       start_time: payload.suggested_start_time,
       end_time: payload.suggested_end_time,
+    }, {
+      onSuccess: () => accept(suggestionId),
+      onError: () => undefined,
     });
-    accept(suggestionId);
   };
 
   if (isLoading) {
