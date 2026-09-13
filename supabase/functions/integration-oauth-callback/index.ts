@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: stateRow, error: stateError } = await adminClient
       .from("oauth_states")
-      .select("user_id, provider, connection_id")
+      .select("user_id, provider, connection_id, requesting_message_scan")
       .eq("state", state)
       .maybeSingle();
     if (stateError || !stateRow) return appRedirect(req, "error");
@@ -85,6 +85,19 @@ Deno.serve(async (req: Request) => {
       last_error: null,
       updated_at: new Date().toISOString(),
     };
+
+    // Only flip the toggle on once the actually-granted scope (not just
+    // what was requested) contains every message-scan scope this
+    // provider needs - a user can decline part of a consent screen, and
+    // the toggle should reflect reality, not intent.
+    const messageScanGranted =
+      stateRow.requesting_message_scan &&
+      !!provider.messageScanScopes &&
+      provider.messageScanScopes.split(" ").every((s) => (tokens.scope ?? "").split(" ").includes(s));
+
+    if (messageScanGranted) {
+      (connectionFields as Record<string, unknown>).message_scan_enabled = true;
+    }
 
     if (stateRow.connection_id) {
       const { error: updateError } = await adminClient
