@@ -113,6 +113,11 @@ export const microsoftProvider: IntegrationProvider = {
       response_mode: "query",
       scope: MICROSOFT_SCOPES,
       state,
+      // Without this, Microsoft's login page silently reuses whatever
+      // account session is already cached in the browser, making it
+      // impossible to pick a different account without manually clearing
+      // cookies or using a private window.
+      prompt: "select_account",
     });
     return `${AUTHORIZE_URL}?${params.toString()}`;
   },
