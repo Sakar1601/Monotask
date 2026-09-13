@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '../types/deno';
-import { googleProvider, mapGoogleTask } from '../../supabase/functions/_shared/integrations/google.ts';
+import { googleProvider, mapGoogleTask, mapGmailMessage } from '../../supabase/functions/_shared/integrations/google.ts';
 
 describe('Google Tasks pull fidelity', () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -98,5 +98,47 @@ describe('Google push mechanism', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(googleProvider.deleteTask('token', 'task-1')).rejects.toThrow(/500/);
+  });
+});
+
+describe('Gmail message mapping', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('maps a Gmail message detail, preferring the snippet field over a full body fetch', () => {
+    expect(mapGmailMessage({
+      id: 'msg-1',
+      snippet: 'Can you send the report by Friday?',
+      internalDate: '1700000000000',
+      payload: { headers: [
+        { name: 'Subject', value: 'Report needed' },
+        { name: 'From', value: 'boss@example.com' },
+      ] },
+    })).toEqual({
+      externalId: 'msg-1',
+      source: 'email',
+      subject: 'Report needed',
+      snippet: 'Can you send the report by Friday?',
+      sender: 'boss@example.com',
+      receivedAt: new Date(1700000000000).toISOString(),
+    });
+  });
+
+  it('returns null for a message with no id', () => {
+    expect(mapGmailMessage({ snippet: 'no id here' })).toBeNull();
+  });
+
+  it('appends extraScopes to the authorize URL when provided', () => {
+    vi.stubGlobal('Deno', { env: { get: () => 'test-client-id' } });
+    const url = googleProvider.getAuthUrl('state-1', 'https://example.com/callback', 'https://www.googleapis.com/auth/gmail.readonly');
+    const scope = new URL(url).searchParams.get('scope')!;
+    expect(scope).toContain('https://www.googleapis.com/auth/gmail.readonly');
+    expect(scope).toContain('https://www.googleapis.com/auth/calendar');
+  });
+
+  it('omits extraScopes from the authorize URL when not provided', () => {
+    vi.stubGlobal('Deno', { env: { get: () => 'test-client-id' } });
+    const url = googleProvider.getAuthUrl('state-1', 'https://example.com/callback');
+    const scope = new URL(url).searchParams.get('scope')!;
+    expect(scope).not.toContain('gmail.readonly');
   });
 });
