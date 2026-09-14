@@ -1,8 +1,11 @@
-import type { EventChanges, ExternalEvent, ExternalTask, IntegrationProvider, TaskChanges, TokenSet } from "./types.ts";
+import type { EventChanges, ExternalEvent, ExternalMessage, ExternalTask, IntegrationProvider, TaskChanges, TokenSet } from "./types.ts";
 
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/tasks",
+  // Only used for getAccountEmail below (which account is connected, shown
+  // in Settings) - not required for any calendar/task sync functionality.
+  "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 
 function tokenSetFromResponse(json: Record<string, unknown>, fallbackRefreshToken?: string): TokenSet {
@@ -60,17 +63,39 @@ export function mapGoogleTask(item: GoogleTaskPayload): ExternalTask | null {
   };
 }
 
+interface GmailMessageDetail {
+  id?: string;
+  snippet?: string;
+  internalDate?: string;
+  payload?: { headers?: { name: string; value: string }[] };
+}
+
+export function mapGmailMessage(detail: GmailMessageDetail): ExternalMessage | null {
+  if (!detail.id) return null;
+  const headers = detail.payload?.headers ?? [];
+  const subject = headers.find((h) => h.name === "Subject")?.value ?? null;
+  const from = headers.find((h) => h.name === "From")?.value ?? null;
+  return {
+    externalId: detail.id,
+    source: "email",
+    subject,
+    snippet: detail.snippet ?? "",
+    sender: from,
+    receivedAt: detail.internalDate ? new Date(Number(detail.internalDate)).toISOString() : new Date().toISOString(),
+  };
+}
+
 export const googleProvider: IntegrationProvider = {
   id: "google",
 
-  getAuthUrl(state: string, redirectUri: string): string {
+  getAuthUrl(state: string, redirectUri: string, extraScopes?: string): string {
     const params = new URLSearchParams({
       client_id: Deno.env.get("GOOGLE_CLIENT_ID")!,
       redirect_uri: redirectUri,
       response_type: "code",
       access_type: "offline",
       prompt: "consent",
-      scope: GOOGLE_SCOPES,
+      scope: extraScopes ? `${GOOGLE_SCOPES} ${extraScopes}` : GOOGLE_SCOPES,
       state,
     });
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -223,5 +248,57 @@ export const googleProvider: IntegrationProvider = {
     if (!response.ok && response.status !== 410) {
       throw new Error(`Google task delete failed: ${response.status} ${await response.text()}`);
     }
+  },
+
+  async getAccountEmail(accessToken: string): Promise<string | null> {
+    const response = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      console.error(`Google getAccountEmail failed: ${response.status} ${await response.text()}`);
+      return null;
+    }
+    const json = await response.json() as { email?: string };
+    return json.email ?? null;
+  },
+
+  messageScanScopes: "https://www.googleapis.com/auth/gmail.readonly",
+
+  async fetchMessages(accessToken: string, windowStart: Date): Promise<ExternalMessage[]> {
+    const afterSeconds = Math.floor(windowStart.getTime() / 1000);
+    const listParams = new URLSearchParams({ q: `after:${afterSeconds}`, maxResults: "50" });
+    const messages: ExternalMessage[] = [];
+    let pageToken: string | undefined;
+    let pageCount = 0;
+    // Much lower than fetchEvents/fetchTasks's 20-page ceiling: each
+    // message here costs an extra per-message detail fetch below, and
+    // message-scanning is meant to look at recent activity, not a
+    // account's entire history.
+    const MAX_PAGES = 5;
+    do {
+      if (pageToken) listParams.set("pageToken", pageToken);
+      const listResponse = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages?${listParams.toString()}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!listResponse.ok) throw new Error(`Gmail message list failed: ${listResponse.status} ${await listResponse.text()}`);
+      const listJson = await listResponse.json() as { messages?: { id: string }[]; nextPageToken?: string };
+
+      for (const { id } of listJson.messages ?? []) {
+        const detailParams = new URLSearchParams({ format: "metadata" });
+        detailParams.append("metadataHeaders", "Subject");
+        detailParams.append("metadataHeaders", "From");
+        const detailResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?${detailParams.toString()}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        if (!detailResponse.ok) throw new Error(`Gmail message fetch failed: ${detailResponse.status} ${await detailResponse.text()}`);
+        const mapped = mapGmailMessage(await detailResponse.json());
+        if (mapped) messages.push(mapped);
+      }
+      pageToken = listJson.nextPageToken;
+      pageCount++;
+    } while (pageToken && pageCount < MAX_PAGES);
+    return messages;
   },
 };

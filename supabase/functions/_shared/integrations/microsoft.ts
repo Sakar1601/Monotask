@@ -1,6 +1,10 @@
-import type { EventChanges, ExternalEvent, ExternalTask, IntegrationProvider, TaskChanges, TokenSet } from "./types.ts";
+import type { EventChanges, ExternalEvent, ExternalMessage, ExternalTask, IntegrationProvider, TaskChanges, TokenSet } from "./types.ts";
 
-const MICROSOFT_SCOPES = "offline_access Calendars.ReadWrite Tasks.ReadWrite";
+// User.Read is a default permission on every app registration, but that
+// only means Azure lets an app request it without extra admin consent -
+// it still has to be listed here explicitly, or the issued token's scope
+// won't include it and /me (getAccountEmail) 401s.
+const MICROSOFT_SCOPES = "offline_access Calendars.ReadWrite Tasks.ReadWrite User.Read";
 
 // The `common` tenant endpoint accepts both personal Microsoft accounts and
 // work/school (Azure AD) accounts through the same authorize/token URLs -
@@ -47,6 +51,21 @@ interface GraphTaskList {
   wellknownListName?: string;
 }
 
+interface GraphMailMessage {
+  id?: string;
+  subject?: string;
+  bodyPreview?: string;
+  from?: { emailAddress?: { address?: string; name?: string } };
+  receivedDateTime?: string;
+}
+
+interface GraphChatMessage {
+  id?: string;
+  from?: { user?: { displayName?: string } };
+  body?: { content?: string; contentType?: string };
+  createdDateTime?: string;
+}
+
 // Graph's calendarView/todo dateTime strings carry no offset - they are
 // local to whatever timezone the request specified. This provider never
 // sends a "Prefer: outlook.timezone" header, so Graph defaults to UTC,
@@ -54,6 +73,54 @@ interface GraphTaskList {
 function asUtcIso(dateTime?: string): string | null {
   if (!dateTime) return null;
   return dateTime.endsWith("Z") ? dateTime : `${dateTime}Z`;
+}
+
+// Graph's dateTimeTimeZone.dateTime must be a bare, offset-free literal -
+// the timeZone field is the only place the zone is conveyed. Our own
+// timestamps come from Postgres with a numeric offset (e.g. "+00:00") or
+// a trailing "Z", either of which must be stripped before sending, or
+// Graph may reject/misinterpret the value (see updateTask, which builds
+// its own bare literal for the same reason).
+function toGraphLocalDateTime(isoDateTime: string): string {
+  return isoDateTime.replace(/(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})$/, "");
+}
+
+// Chat message bodies can be HTML - strips tags for a plain-text
+// snippet. Deliberately simple (no HTML entity decoding beyond the
+// handful Teams commonly emits) since this text is discarded
+// immediately after the AI call, never displayed to the user verbatim.
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function mapOutlookMessage(item: GraphMailMessage): ExternalMessage | null {
+  if (!item.id) return null;
+  return {
+    externalId: item.id,
+    source: "email",
+    subject: item.subject ?? null,
+    snippet: item.bodyPreview ?? "",
+    sender: item.from?.emailAddress?.address ?? null,
+    receivedAt: item.receivedDateTime ?? new Date().toISOString(),
+  };
+}
+
+export function mapTeamsChatMessage(item: GraphChatMessage): ExternalMessage | null {
+  if (!item.id) return null;
+  const rawContent = item.body?.content ?? "";
+  return {
+    externalId: item.id,
+    source: "chat",
+    subject: null,
+    snippet: item.body?.contentType === "html" ? stripHtml(rawContent) : rawContent,
+    sender: item.from?.user?.displayName ?? null,
+    receivedAt: item.createdDateTime ?? new Date().toISOString(),
+  };
 }
 
 export function mapMicrosoftEvent(item: GraphEventPayload): ExternalEvent | null {
@@ -95,14 +162,19 @@ function requireTaskListId(providerMetadata?: Record<string, unknown> | null): s
 export const microsoftProvider: IntegrationProvider = {
   id: "microsoft",
 
-  getAuthUrl(state: string, redirectUri: string): string {
+  getAuthUrl(state: string, redirectUri: string, extraScopes?: string): string {
     const params = new URLSearchParams({
       client_id: Deno.env.get("MICROSOFT_CLIENT_ID")!,
       redirect_uri: redirectUri,
       response_type: "code",
       response_mode: "query",
-      scope: MICROSOFT_SCOPES,
+      scope: extraScopes ? `${MICROSOFT_SCOPES} ${extraScopes}` : MICROSOFT_SCOPES,
       state,
+      // Without this, Microsoft's login page silently reuses whatever
+      // account session is already cached in the browser, making it
+      // impossible to pick a different account without manually clearing
+      // cookies or using a private window.
+      prompt: "select_account",
     });
     return `${AUTHORIZE_URL}?${params.toString()}`;
   },
@@ -117,7 +189,6 @@ export const microsoftProvider: IntegrationProvider = {
         client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET")!,
         redirect_uri: redirectUri,
         grant_type: "authorization_code",
-        scope: MICROSOFT_SCOPES,
       }),
     });
     if (!response.ok) throw new Error(`Microsoft token exchange failed: ${response.status} ${await response.text()}`);
@@ -133,7 +204,11 @@ export const microsoftProvider: IntegrationProvider = {
         client_id: Deno.env.get("MICROSOFT_CLIENT_ID")!,
         client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET")!,
         grant_type: "refresh_token",
-        scope: MICROSOFT_SCOPES,
+        // No scope param - same reasoning as exchangeCode above: sending a
+        // static base scope list here would narrow the refreshed token
+        // away from whatever extra scopes (e.g. Mail.Read/Chat.Read from
+        // enabling message-scanning) were actually granted, silently
+        // breaking that feature ~hourly once the token first refreshes.
       }),
     });
     if (!response.ok) throw new Error(`Microsoft token refresh failed: ${response.status} ${await response.text()}`);
@@ -197,8 +272,8 @@ export const microsoftProvider: IntegrationProvider = {
     if (changes.description !== undefined) {
       body.body = changes.description === null ? null : { contentType: "text", content: changes.description };
     }
-    if (changes.startTime !== undefined) body.start = { dateTime: changes.startTime, timeZone: "UTC" };
-    if (changes.endTime !== undefined) body.end = changes.endTime ? { dateTime: changes.endTime, timeZone: "UTC" } : null;
+    if (changes.startTime !== undefined) body.start = { dateTime: toGraphLocalDateTime(changes.startTime), timeZone: "UTC" };
+    if (changes.endTime !== undefined) body.end = changes.endTime ? { dateTime: toGraphLocalDateTime(changes.endTime), timeZone: "UTC" } : null;
     if (changes.location !== undefined) body.location = changes.location === null ? null : { displayName: changes.location };
 
     const response = await fetch(`${GRAPH_BASE}/me/events/${encodeURIComponent(externalEventId)}`, {
@@ -251,5 +326,62 @@ export const microsoftProvider: IntegrationProvider = {
     if (!response.ok && response.status !== 404) {
       throw new Error(`Microsoft task delete failed: ${response.status} ${await response.text()}`);
     }
+  },
+
+  async getAccountEmail(accessToken: string): Promise<string | null> {
+    // User.Read is granted by default to every app registration, so this
+    // needs no scope beyond what MICROSOFT_SCOPES already requests.
+    const response = await fetch(`${GRAPH_BASE}/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      console.error(`Microsoft getAccountEmail failed: ${response.status} ${await response.text()}`);
+      return null;
+    }
+    const json = await response.json() as { mail?: string; userPrincipalName?: string };
+    return json.mail ?? json.userPrincipalName ?? null;
+  },
+
+  messageScanScopes: "Mail.Read Chat.Read",
+
+  async fetchMessages(accessToken: string, windowStart: Date): Promise<ExternalMessage[]> {
+    const params = new URLSearchParams({
+      $filter: `receivedDateTime ge ${windowStart.toISOString()}`,
+      $select: "id,subject,bodyPreview,from,receivedDateTime",
+      $top: "50",
+    });
+    const messages: ExternalMessage[] = [];
+    let url: string | undefined = `${GRAPH_BASE}/me/mailFolders/inbox/messages?${params.toString()}`;
+    let pageCount = 0;
+    const MAX_PAGES = 5; // matches google.ts's message-scanning ceiling
+    while (url && pageCount < MAX_PAGES) {
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!response.ok) throw new Error(`Outlook mail fetch failed: ${response.status} ${await response.text()}`);
+      const json = await response.json() as { value?: GraphMailMessage[]; "@odata.nextLink"?: string };
+      messages.push(...(json.value ?? []).map(mapOutlookMessage).filter((m): m is ExternalMessage => m !== null));
+      url = json["@odata.nextLink"];
+      pageCount++;
+    }
+    return messages;
+  },
+
+  async fetchChatMessages(accessToken: string, windowStart: Date): Promise<ExternalMessage[]> {
+    const params = new URLSearchParams({
+      $filter: `lastModifiedDateTime gt ${windowStart.toISOString()}`,
+      $top: "50",
+    });
+    const messages: ExternalMessage[] = [];
+    let url: string | undefined = `${GRAPH_BASE}/me/chats/getAllMessages?${params.toString()}`;
+    let pageCount = 0;
+    const MAX_PAGES = 5;
+    while (url && pageCount < MAX_PAGES) {
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!response.ok) throw new Error(`Teams chat fetch failed: ${response.status} ${await response.text()}`);
+      const json = await response.json() as { value?: GraphChatMessage[]; "@odata.nextLink"?: string };
+      messages.push(...(json.value ?? []).map(mapTeamsChatMessage).filter((m): m is ExternalMessage => m !== null));
+      url = json["@odata.nextLink"];
+      pageCount++;
+    }
+    return messages;
   },
 };

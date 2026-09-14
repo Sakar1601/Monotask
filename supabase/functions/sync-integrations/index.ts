@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { providers } from "../_shared/integrations/registry.ts";
 import type { ExternalEvent, ExternalTask } from "../_shared/integrations/types.ts";
+import { ensureFreshToken } from "../_shared/integrations/tokenRefresh.ts";
 
 const WINDOW_DAYS_PAST = 1;
 const WINDOW_DAYS_FUTURE = 30;
@@ -16,6 +17,7 @@ type Connection = {
   calendar_sync_enabled: boolean;
   scope: string | null;
   provider_metadata: Record<string, unknown> | null;
+  account_email: string | null;
 };
 
 const REQUIRED_SCOPES: Record<Connection["provider"], string[]> = {
@@ -27,26 +29,6 @@ function hasWriteScopes(provider: Connection["provider"], scope: string | null):
   if (!scope) return false;
   const granted = scope.split(" ");
   return REQUIRED_SCOPES[provider].every((required) => granted.includes(required));
-}
-
-async function ensureFreshToken(
-  adminClient: ReturnType<typeof createClient>,
-  connection: Connection,
-): Promise<string> {
-  const expiresInMs = new Date(connection.expires_at).getTime() - Date.now();
-  if (expiresInMs > 60_000) return connection.access_token;
-
-  const tokens = await providers[connection.provider].refreshToken(connection.refresh_token);
-  await adminClient
-    .from("integration_connections")
-    .update({
-      access_token: tokens.accessToken,
-      refresh_token: tokens.refreshToken || connection.refresh_token,
-      expires_at: tokens.expiresAt,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", connection.id);
-  return tokens.accessToken;
 }
 
 async function syncConnection(adminClient: ReturnType<typeof createClient>, connection: Connection) {
@@ -74,6 +56,21 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
         .from("integration_connections")
         .update({ provider_metadata: providerMetadata })
         .eq("id", connection.id);
+    }
+
+    // Backfills account_email for connections made before this field
+    // existed (or that didn't have the scope it needs yet - only ever
+    // succeeds once that connection has been reconnected). Best-effort:
+    // getAccountEmail already returns null rather than throwing on
+    // failure, so this never blocks the actual sync below.
+    if (!connection.account_email && provider.getAccountEmail) {
+      const accountEmail = await provider.getAccountEmail(accessToken);
+      if (accountEmail) {
+        await adminClient
+          .from("integration_connections")
+          .update({ account_email: accountEmail })
+          .eq("id", connection.id);
+      }
     }
 
     const now = new Date();
@@ -134,7 +131,39 @@ async function upsertEvents(
     offset += pageSize;
   }
 
+  // Rows a previous disconnect orphaned (sync_connection_id set to null by
+  // the FK, not deleted - disconnecting is meant to keep a user's data,
+  // just detach it) for this same provider/account. Without this, a
+  // reconnect of the SAME account would create a second row for every
+  // item that was already synced before the disconnect, since none of
+  // them match the new connection id that upsert's onConflict target
+  // filters on. Matched by external id alone (not connection id, which is
+  // exactly what changed) - safe in practice since provider-assigned ids
+  // are opaque and not shared across accounts.
+  const orphanedByExternalId = new Map<string, string>(); // external_event_id -> row id
+  {
+    let orphanedOffset = 0;
+    while (true) {
+      const { data: orphanedRows, error: orphanedError } = await adminClient
+        .from("events")
+        .select("id, external_event_id")
+        .eq("user_id", connection.user_id)
+        .eq("sync_provider", connection.provider)
+        .is("sync_connection_id", null)
+        .not("external_event_id", "is", null)
+        .order("external_event_id", { ascending: true })
+        .range(orphanedOffset, orphanedOffset + pageSize - 1);
+      if (orphanedError) throw orphanedError;
+      for (const row of orphanedRows ?? []) {
+        if (row.external_event_id) orphanedByExternalId.set(row.external_event_id, row.id);
+      }
+      if ((orphanedRows?.length ?? 0) < pageSize) break;
+      orphanedOffset += pageSize;
+    }
+  }
+
   const toUpsert: Record<string, unknown>[] = [];
+  const toReattach: Record<string, unknown>[] = [];
   const toTouch: string[] = []; // external_event_ids present in Google but skipped (pending local edit)
 
   for (const e of events) {
@@ -144,7 +173,7 @@ async function upsertEvents(
       toTouch.push(e.externalId);
       continue;
     }
-    toUpsert.push({
+    const fields = {
       user_id: connection.user_id,
       sync_connection_id: connection.id,
       external_event_id: e.externalId,
@@ -156,9 +185,19 @@ async function upsertEvents(
       synced_at: syncStartedAt,
       last_seen_at: syncStartedAt,
       updated_at: syncStartedAt,
-    });
+    };
+    const orphanedId = !existing ? orphanedByExternalId.get(e.externalId) : undefined;
+    if (orphanedId) {
+      toReattach.push({ id: orphanedId, ...fields });
+    } else {
+      toUpsert.push(fields);
+    }
   }
 
+  if (toReattach.length > 0) {
+    const { error } = await adminClient.from("events").upsert(toReattach, { onConflict: "id" });
+    if (error) throw error;
+  }
   if (toUpsert.length > 0) {
     const { error } = await adminClient.from("events").upsert(toUpsert, { onConflict: "sync_connection_id,external_event_id" });
     if (error) throw error;
@@ -264,7 +303,33 @@ async function upsertTasks(
     offset += pageSize;
   }
 
+  // Same re-attach logic as upsertEvents (see the comment there) - tasks a
+  // previous disconnect orphaned for this account get matched back by
+  // external id instead of getting a duplicate row on reconnect.
+  const orphanedByExternalId = new Map<string, { id: string; priority: string }>();
+  {
+    let orphanedOffset = 0;
+    while (true) {
+      const { data: orphanedTasks, error: orphanedError } = await adminClient
+        .from("tasks")
+        .select("id, external_task_id, priority")
+        .eq("user_id", connection.user_id)
+        .eq("sync_provider", connection.provider)
+        .is("sync_connection_id", null)
+        .not("external_task_id", "is", null)
+        .order("external_task_id", { ascending: true })
+        .range(orphanedOffset, orphanedOffset + pageSize - 1);
+      if (orphanedError) throw orphanedError;
+      for (const task of orphanedTasks ?? []) {
+        if (task.external_task_id) orphanedByExternalId.set(task.external_task_id, { id: task.id, priority: task.priority });
+      }
+      if ((orphanedTasks?.length ?? 0) < pageSize) break;
+      orphanedOffset += pageSize;
+    }
+  }
+
   const toUpsert: Record<string, unknown>[] = [];
+  const toReattach: Record<string, unknown>[] = [];
   const toTouch: string[] = [];
 
   for (const t of tasks) {
@@ -274,7 +339,8 @@ async function upsertTasks(
       toTouch.push(t.externalId);
       continue;
     }
-    toUpsert.push({
+    const orphaned = !existing ? orphanedByExternalId.get(t.externalId) : undefined;
+    const fields = {
       user_id: connection.user_id,
       sync_connection_id: connection.id,
       external_task_id: t.externalId,
@@ -283,13 +349,22 @@ async function upsertTasks(
       due_date: t.dueDate,
       status: t.status,
       completed_at: t.status === "completed" ? (t.completedAt ?? syncStartedAt) : null,
-      priority: existing?.priority ?? "medium",
+      priority: existing?.priority ?? orphaned?.priority ?? "medium",
       synced_at: syncStartedAt,
       last_seen_at: syncStartedAt,
       updated_at: syncStartedAt,
-    });
+    };
+    if (orphaned) {
+      toReattach.push({ id: orphaned.id, ...fields });
+    } else {
+      toUpsert.push(fields);
+    }
   }
 
+  if (toReattach.length > 0) {
+    const { error } = await adminClient.from("tasks").upsert(toReattach, { onConflict: "id" });
+    if (error) throw error;
+  }
   if (toUpsert.length > 0) {
     const { error } = await adminClient.from("tasks").upsert(toUpsert, { onConflict: "sync_connection_id,external_task_id" });
     if (error) throw error;
@@ -395,7 +470,7 @@ Deno.serve(async (req: Request) => {
 
     let query = adminClient
       .from("integration_connections")
-      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled, scope, provider_metadata")
+      .select("id, user_id, provider, access_token, refresh_token, expires_at, calendar_sync_enabled, scope, provider_metadata, account_email")
       .eq("calendar_sync_enabled", true)
       .neq("status", "disconnected");
     if (connectionId) query = query.eq("id", connectionId);

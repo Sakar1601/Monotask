@@ -18,12 +18,17 @@ import { providers } from "../_shared/integrations/registry.ts";
 // connect redirects to https://<project>.supabase.co/app - a 404. The
 // fallback exists only so quick local testing works without configuration,
 // where landing on a 404 after consent is harmless.
-function appRedirect(req: Request, status: "connected" | "error"): Response {
+function appRedirect(req: Request, status: "connected" | "error", provider?: string): Response {
   const origin = Deno.env.get("APP_ORIGIN") ?? new URL(req.url).origin;
-  return Response.redirect(`${origin}/app?integration=${status}`, 302);
+  const params = new URLSearchParams({ integration: status });
+  if (provider) params.set("provider", provider);
+  return Response.redirect(`${origin}/app?${params.toString()}`, 302);
 }
 
 Deno.serve(async (req: Request) => {
+  // Hoisted so the catch block can still name the provider in its error
+  // redirect if the failure happened after the state row was resolved.
+  let providerId: string | undefined;
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
@@ -35,10 +40,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: stateRow, error: stateError } = await adminClient
       .from("oauth_states")
-      .select("user_id, provider")
+      .select("user_id, provider, connection_id, requesting_message_scan")
       .eq("state", state)
       .maybeSingle();
     if (stateError || !stateRow) return appRedirect(req, "error");
+    providerId = stateRow.provider;
 
     // Consume the state token so it can't be replayed.
     await adminClient.from("oauth_states").delete().eq("state", state);
@@ -52,26 +58,71 @@ Deno.serve(async (req: Request) => {
     const redirectUri = Deno.env.get("OAUTH_CALLBACK_URL") ?? `${supabaseUrl}/functions/v1/integration-oauth-callback`;
     const tokens = await provider.exchangeCode(code, redirectUri);
 
-    const { error: upsertError } = await adminClient.from("integration_connections").upsert(
-      {
+    // Best-effort - shown in Settings so a user can tell which account is
+    // connected, but never blocks the connect itself (e.g. a scope that
+    // predates this feature, or a transient failure, just means no email
+    // shows up for this connection).
+    const accountEmail = provider.getAccountEmail
+      ? await provider.getAccountEmail(tokens.accessToken).catch(() => null)
+      : null;
+
+    // A "Reconnect" flow carries the specific row it's for, so it updates
+    // that row in place - a fresh "Connect" (or "Connect another
+    // account") has none and always inserts a new row. Multiple accounts
+    // per provider means there is no longer a (user_id, provider) key to
+    // upsert on for telling these apart.
+    const connectionFields = {
+      status: "connected",
+      calendar_sync_enabled: true,
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+      expires_at: tokens.expiresAt,
+      scope: tokens.scope,
+      // Only set on a successful fetch, so a reconnect that transiently
+      // fails to re-fetch it doesn't blank out an email this connection
+      // already had on record.
+      ...(accountEmail ? { account_email: accountEmail } : {}),
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Only flip the toggle on once the actually-granted scope (not just
+    // what was requested) contains at least one message-scan scope this
+    // provider uses - a user can decline part of a consent screen, and
+    // the toggle should reflect reality, not intent. Requiring *every*
+    // scope would wrongly block scanning for an account that can only
+    // grant part of the set (e.g. a personal Microsoft account has no
+    // Teams to grant Chat.Read for, but Mail.Read still works fine) -
+    // scan-messages independently checks per-source availability, so
+    // partial capability here is a real, useful outcome, not a failure.
+    const messageScanGranted =
+      stateRow.requesting_message_scan &&
+      !!provider.messageScanScopes &&
+      provider.messageScanScopes.split(" ").some((s) => (tokens.scope ?? "").split(" ").includes(s));
+
+    if (messageScanGranted) {
+      (connectionFields as Record<string, unknown>).message_scan_enabled = true;
+    }
+
+    if (stateRow.connection_id) {
+      const { error: updateError } = await adminClient
+        .from("integration_connections")
+        .update(connectionFields)
+        .eq("id", stateRow.connection_id)
+        .eq("user_id", stateRow.user_id);
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertError } = await adminClient.from("integration_connections").insert({
         user_id: stateRow.user_id,
         provider: stateRow.provider,
-        status: "connected",
-        calendar_sync_enabled: true,
-        access_token: tokens.accessToken,
-        refresh_token: tokens.refreshToken,
-        expires_at: tokens.expiresAt,
-        scope: tokens.scope,
-        last_error: null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,provider" },
-    );
-    if (upsertError) throw upsertError;
+        ...connectionFields,
+      });
+      if (insertError) throw insertError;
+    }
 
-    return appRedirect(req, "connected");
+    return appRedirect(req, "connected", stateRow.provider);
   } catch (error) {
     console.error("integration-oauth-callback error:", error);
-    return appRedirect(req, "error");
+    return appRedirect(req, "error", providerId);
   }
 });

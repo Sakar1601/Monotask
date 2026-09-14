@@ -34,6 +34,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_suggestions: {
+        Row: {
+          connection_id: string | null
+          created_at: string
+          id: string
+          kind: string
+          payload: Json
+          status: string
+          user_id: string
+        }
+        Insert: {
+          connection_id?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          payload: Json
+          status?: string
+          user_id: string
+        }
+        Update: {
+          connection_id?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          payload?: Json
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_suggestions_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_suggestions_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_usage: {
         Row: {
           call_count: number
@@ -235,6 +280,7 @@ export type Database = {
       integration_connections: {
         Row: {
           access_token: string
+          account_email: string | null
           calendar_sync_enabled: boolean
           created_at: string
           expires_at: string
@@ -253,6 +299,7 @@ export type Database = {
         }
         Insert: {
           access_token: string
+          account_email?: string | null
           calendar_sync_enabled?: boolean
           created_at?: string
           expires_at: string
@@ -271,6 +318,7 @@ export type Database = {
         }
         Update: {
           access_token?: string
+          account_email?: string | null
           calendar_sync_enabled?: boolean
           created_at?: string
           expires_at?: string
@@ -339,24 +387,45 @@ export type Database = {
       }
       oauth_states: {
         Row: {
+          connection_id: string | null
           created_at: string
           provider: string
+          requesting_message_scan: boolean
           state: string
           user_id: string
         }
         Insert: {
+          connection_id?: string | null
           created_at?: string
           provider: string
+          requesting_message_scan?: boolean
           state: string
           user_id: string
         }
         Update: {
+          connection_id?: string | null
           created_at?: string
           provider?: string
+          requesting_message_scan?: boolean
           state?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "oauth_states_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oauth_states_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "integration_connections_view"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -536,6 +605,7 @@ export type Database = {
     Views: {
       integration_connections_view: {
         Row: {
+          account_email: string | null
           calendar_sync_enabled: boolean | null
           created_at: string | null
           expires_at: string | null
@@ -551,6 +621,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          account_email?: string | null
           calendar_sync_enabled?: boolean | null
           created_at?: string | null
           expires_at?: string | null
@@ -566,6 +637,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          account_email?: string | null
           calendar_sync_enabled?: boolean | null
           created_at?: string | null
           expires_at?: string | null
@@ -585,7 +657,7 @@ export type Database = {
     }
     Functions: {
       check_and_increment_ai_usage: {
-        Args: { p_daily_limit: number; p_feature: string }
+        Args: { p_daily_limit: number; p_feature: string; p_user_id?: string }
         Returns: boolean
       }
     }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '../types/deno';
-import { mapMicrosoftEvent, mapMicrosoftTask, microsoftProvider } from '../../supabase/functions/_shared/integrations/microsoft.ts';
+import { mapMicrosoftEvent, mapMicrosoftTask, mapOutlookMessage, mapTeamsChatMessage, microsoftProvider } from '../../supabase/functions/_shared/integrations/microsoft.ts';
 
 describe('Microsoft mapping', () => {
   it('maps a Graph event, defaulting to UTC when no offset is present', () => {
@@ -29,6 +29,97 @@ describe('Microsoft mapping', () => {
       .toMatchObject({ status: 'completed', completedAt: '2026-09-11T12:00:00.0000000Z' });
     expect(mapMicrosoftTask({ id: 'task-2', status: 'notStarted' }))
       .toMatchObject({ status: 'pending', completedAt: null });
+  });
+});
+
+describe('Microsoft message mapping', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('maps an Outlook mail message', () => {
+    expect(mapOutlookMessage({
+      id: 'mail-1',
+      subject: 'Report needed',
+      bodyPreview: 'Can you send the report by Friday?',
+      from: { emailAddress: { address: 'boss@example.com', name: 'Boss' } },
+      receivedDateTime: '2026-09-15T09:00:00Z',
+    })).toEqual({
+      externalId: 'mail-1',
+      source: 'email',
+      subject: 'Report needed',
+      snippet: 'Can you send the report by Friday?',
+      sender: 'boss@example.com',
+      receivedAt: '2026-09-15T09:00:00Z',
+    });
+  });
+
+  it('strips HTML from a Teams chat message body', () => {
+    expect(mapTeamsChatMessage({
+      id: 'chat-1',
+      from: { user: { displayName: 'Alex' } },
+      body: { content: '<p>Can you <b>review</b> the PR?</p>', contentType: 'html' },
+      createdDateTime: '2026-09-15T09:00:00Z',
+    })).toEqual({
+      externalId: 'chat-1',
+      source: 'chat',
+      subject: null,
+      snippet: 'Can you review the PR?',
+      sender: 'Alex',
+      receivedAt: '2026-09-15T09:00:00Z',
+    });
+  });
+
+  it('returns null for a message with no id', () => {
+    expect(mapOutlookMessage({ subject: 'no id' })).toBeNull();
+    expect(mapTeamsChatMessage({ body: { content: 'no id' } })).toBeNull();
+  });
+
+  it('appends extraScopes to the authorize URL when provided', () => {
+    vi.stubGlobal('Deno', { env: { get: () => 'test-value' } });
+    const url = microsoftProvider.getAuthUrl('state-1', 'https://example.com/callback', 'Mail.Read Chat.Read');
+    const scope = new URL(url).searchParams.get('scope')!;
+    expect(scope).toContain('Mail.Read');
+    expect(scope).toContain('Chat.Read');
+    expect(scope).toContain('Calendars.ReadWrite');
+  });
+});
+
+describe('Microsoft OAuth', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('redeems an authorization code without narrowing consented message scopes', async () => {
+    vi.stubGlobal('Deno', { env: { get: () => 'test-value' } });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+      expires_in: 3600,
+      scope: 'offline_access Calendars.ReadWrite Tasks.ReadWrite User.Read Mail.Read Chat.Read',
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const tokens = await microsoftProvider.exchangeCode('authorization-code', 'https://example.com/callback');
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = new URLSearchParams(init.body);
+    expect(body.has('scope')).toBe(false);
+    expect(tokens.scope).toBe('offline_access Calendars.ReadWrite Tasks.ReadWrite User.Read Mail.Read Chat.Read');
+  });
+
+  it('refreshes a token without narrowing consented message scopes', async () => {
+    vi.stubGlobal('Deno', { env: { get: () => 'test-value' } });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      access_token: 'new-access-token',
+      refresh_token: 'new-refresh-token',
+      expires_in: 3600,
+      scope: 'offline_access Calendars.ReadWrite Tasks.ReadWrite User.Read Mail.Read Chat.Read',
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const tokens = await microsoftProvider.refreshToken('refresh-token');
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = new URLSearchParams(init.body);
+    expect(body.has('scope')).toBe(false);
+    expect(tokens.scope).toBe('offline_access Calendars.ReadWrite Tasks.ReadWrite User.Read Mail.Read Chat.Read');
   });
 });
 
@@ -106,6 +197,22 @@ describe('Microsoft push mechanism', () => {
     expect(url).toContain('/events/event-1');
     expect(init.method).toBe('PATCH');
     expect(JSON.parse(init.body)).toEqual({ subject: 'New title', end: null });
+  });
+
+  it('strips the offset from start/end times, since Graph rejects anything but a bare local literal', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await microsoftProvider.updateEvent('token', 'event-1', {
+      startTime: '2026-09-15T09:00:00+00:00',
+      endTime: '2026-09-15T09:30:00Z',
+    });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body)).toEqual({
+      start: { dateTime: '2026-09-15T09:00:00', timeZone: 'UTC' },
+      end: { dateTime: '2026-09-15T09:30:00', timeZone: 'UTC' },
+    });
   });
 
   it('treats a 404 on event delete as success (already gone in Microsoft)', async () => {

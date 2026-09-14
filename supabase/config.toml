@@ -35,6 +35,14 @@ verify_jwt = false
 [functions.sync-integrations]
 verify_jwt = false
 
+# Cron-invoked with the service-role key, same as sync-integrations.
+[functions.scan-messages]
+verify_jwt = false
+
+# Cron-invoked with the service-role key, same as sync-integrations.
+[functions.detect-conflicts]
+verify_jwt = false
+
 # Invoked from the browser via supabase.functions.invoke(), which triggers
 # a CORS preflight; the function does its own supabase.auth.getUser() check
 # internally (same reasoning as integration-oauth-start).

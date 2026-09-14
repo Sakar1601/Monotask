@@ -14,11 +14,14 @@ import HabitsView from "@/components/HabitsView";
 import TagsView from "@/components/TagsView";
 import ProgressView from "@/components/ProgressView";
 import Settings from "@/components/Settings";
+import SuggestionsView from "@/components/SuggestionsView";
+import { useAiSuggestions } from "@/hooks/useAiSuggestions";
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const { settings } = useSettings();
+  const { pendingCount } = useAiSuggestions();
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentView, setCurrentView] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -38,16 +41,19 @@ const Index = () => {
     }
   }, [user, loading, navigate]);
 
-  // The OAuth callback function redirects back here with ?integration=connected
-  // or ?integration=error. Surface the outcome, then strip the param so a
-  // refresh doesn't re-fire the toast.
+  // The OAuth callback function redirects back here with
+  // ?integration=connected&provider=google (or =microsoft), or
+  // ?integration=error(&provider=...). Surface the outcome, then strip the
+  // params so a refresh doesn't re-fire the toast.
   useEffect(() => {
     const integration = searchParams.get('integration');
     if (!integration) return;
+    const provider = searchParams.get('provider');
+    const label = provider === 'microsoft' ? 'Microsoft' : provider === 'google' ? 'Google' : 'the integration';
     if (integration === 'connected') {
-      toast.success('Google connected!');
+      toast.success(`${label} connected!`);
     } else {
-      toast.error('Failed to connect Google. Please try again.');
+      toast.error(`Failed to connect ${label}. Please try again.`);
     }
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams]);
@@ -88,6 +94,8 @@ const Index = () => {
         return <TagsView />;
       case 'progress':
         return <ProgressView />;
+      case 'suggestions':
+        return <SuggestionsView />;
       case 'settings':
         return <Settings />;
       default:
@@ -102,6 +110,7 @@ const Index = () => {
         onViewChange={setCurrentView}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        badges={{ suggestions: pendingCount }}
       />
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar

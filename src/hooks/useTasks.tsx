@@ -5,6 +5,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 
+const providerLabel = (provider?: 'google' | 'microsoft' | null) =>
+  provider === 'microsoft' ? 'Outlook' : 'Google';
+
 export interface Task {
   id: string;
   title: string;
@@ -96,7 +99,7 @@ export const useTasks = () => {
       }
       
       console.log('Created task:', data);
-      return data;
+      return data as Task;
     },
     onSuccess: (newTask) => {
       console.log('Task created successfully, updating cache');
@@ -141,7 +144,7 @@ export const useTasks = () => {
         .single();
 
       if (error) throw error;
-      return data;
+      return data as Task;
     },
     onSuccess: (updatedTask) => {
       queryClient.setQueryData(['tasks', user?.id], (oldTasks: Task[] = []) => {
@@ -169,7 +172,7 @@ export const useTasks = () => {
             },
           })
           .then(({ error }) => {
-            if (error) toast.error('Saved locally, but could not sync the change to Google');
+            if (error) toast.error(`Saved locally, but could not sync the change to ${providerLabel(updatedTask.sync_provider)}`);
             // Either way the row's sync_error/synced_at may have changed
             // server-side, so refetch to show (or clear) the failure badge.
             queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
@@ -217,7 +220,7 @@ export const useTasks = () => {
             },
           })
           .then(({ error }) => {
-            if (error) toast.error('Deleted locally, but could not delete it in Google');
+            if (error) toast.error(`Deleted locally, but could not delete it in ${providerLabel(snapshot.sync_provider)}`);
             queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
           });
       }

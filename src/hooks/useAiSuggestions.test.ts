@@ -1,0 +1,148 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const useQuery = vi.hoisted(() => vi.fn());
+const useMutation = vi.hoisted(() => vi.fn());
+const useQueryClient = vi.hoisted(() => vi.fn());
+const useAuth = vi.hoisted(() => vi.fn());
+const from = vi.hoisted(() => vi.fn());
+const toast = vi.hoisted(() => ({ error: vi.fn() }));
+
+vi.mock('@tanstack/react-query', () => ({ useQuery, useMutation, useQueryClient }));
+vi.mock('@/integrations/supabase/client', () => ({ supabase: { from } }));
+vi.mock('./useAuth', () => ({ useAuth }));
+vi.mock('sonner', () => ({ toast }));
+
+import { useAiSuggestions, type AiSuggestion } from './useAiSuggestions';
+
+const suggestion: AiSuggestion = {
+  id: 'suggestion-1',
+  kind: 'task',
+  payload: {
+    title: 'Send report',
+    description: 'Send the report to the team',
+    due_date: '2026-09-15',
+    due_time: null,
+    priority: 'high',
+  },
+  created_at: '2026-09-13T12:00:00Z',
+};
+
+// Matches the exact shape both mutations in useAiSuggestions.tsx pass
+// to useMutation - narrow enough to call directly in tests below
+// without falling back to `any`.
+interface MutationOptions {
+  mutationFn: (id: string) => Promise<void>;
+  onSuccess: () => void;
+  onError?: () => void;
+}
+
+describe('useAiSuggestions', () => {
+  const invalidateQueries = vi.fn();
+  const mutationOptions: MutationOptions[] = [];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mutationOptions.length = 0;
+    useAuth.mockReturnValue({ user: { id: 'user-1' } });
+    useQueryClient.mockReturnValue({ invalidateQueries });
+    useQuery.mockReturnValue({ data: [suggestion], isLoading: false });
+    useMutation.mockImplementation((options: MutationOptions) => {
+      mutationOptions.push(options);
+      return { mutate: vi.fn() };
+    });
+  });
+
+  it('returns pending suggestions and configures a user-scoped query', () => {
+    const result = useAiSuggestions();
+
+    expect(result).toEqual({
+      suggestions: [suggestion],
+      isLoading: false,
+      accept: expect.any(Function),
+      dismiss: expect.any(Function),
+      pendingCount: 1,
+    });
+    expect(useQuery).toHaveBeenCalledWith(expect.objectContaining({
+      queryKey: ['ai-suggestions', 'user-1'],
+      enabled: true,
+    }));
+  });
+
+  it('fetches only pending suggestions ordered newest first', async () => {
+    const order = vi.fn().mockResolvedValue({ data: [suggestion], error: null });
+    const eq = vi.fn().mockReturnValue({ order });
+    const select = vi.fn().mockReturnValue({ eq });
+    from.mockReturnValue({ select });
+
+    useAiSuggestions();
+    const queryConfig = useQuery.mock.calls[0][0];
+
+    await expect(queryConfig.queryFn()).resolves.toEqual([suggestion]);
+    expect(from).toHaveBeenCalledWith('ai_suggestions');
+    expect(select).toHaveBeenCalledWith('id, kind, payload, created_at');
+    expect(eq).toHaveBeenCalledWith('status', 'pending');
+    expect(order).toHaveBeenCalledWith('created_at', { ascending: false });
+  });
+
+  it('narrows each payload from the suggestion kind', () => {
+    const rescheduleSuggestion: AiSuggestion = {
+      id: 'suggestion-2',
+      kind: 'reschedule',
+      payload: {
+        event_id: 'event-1',
+        other_event_id: 'event-2',
+        current_start_time: '2026-09-15T09:00:00Z',
+        current_end_time: null,
+        suggested_start_time: '2026-09-15T10:00:00Z',
+        suggested_end_time: '2026-09-15T11:00:00Z',
+        reasoning: 'The later time avoids the conflict.',
+      },
+      created_at: '2026-09-13T12:01:00Z',
+    };
+
+    // suggestion/rescheduleSuggestion are each declared with a literal
+    // `kind`, so TS already narrows `payload` to the matching member of
+    // the union at this point - accessing the field directly is what
+    // proves that narrowing works, rather than a runtime check TS can
+    // already prove is always true (the "opposite" branch is `never`).
+    const taskTitle = suggestion.payload.title;
+    const rescheduleReasoning = rescheduleSuggestion.payload.reasoning;
+
+    expect(taskTitle).toBe('Send report');
+    expect(rescheduleReasoning).toBe('The later time avoids the conflict.');
+  });
+
+  it('marks accepted and dismissed suggestions, invalidating pending results', async () => {
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({ eq });
+    from.mockReturnValue({ update });
+
+    useAiSuggestions();
+    await mutationOptions[0].mutationFn('suggestion-1');
+    await mutationOptions[0].onSuccess();
+    await mutationOptions[1].mutationFn('suggestion-1');
+    await mutationOptions[1].onSuccess();
+
+    expect(update).toHaveBeenNthCalledWith(1, { status: 'dismissed' });
+    expect(update).toHaveBeenNthCalledWith(2, { status: 'accepted' });
+    expect(eq).toHaveBeenNthCalledWith(1, 'id', 'suggestion-1');
+    expect(eq).toHaveBeenNthCalledWith(2, 'id', 'suggestion-1');
+    expect(invalidateQueries).toHaveBeenCalledTimes(2);
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['ai-suggestions', 'user-1'] });
+  });
+
+  it('shows an error toast when accepting or dismissing fails', async () => {
+    const eq = vi.fn().mockResolvedValue({ error: new Error('failed') });
+    const update = vi.fn().mockReturnValue({ eq });
+    from.mockReturnValue({ update });
+
+    useAiSuggestions();
+    await expect(mutationOptions[0].mutationFn('suggestion-1')).rejects.toThrow('failed');
+    await mutationOptions[0].onError();
+    await expect(mutationOptions[1].mutationFn('suggestion-1')).rejects.toThrow('failed');
+    await mutationOptions[1].onError();
+
+    expect(toast.error).toHaveBeenNthCalledWith(1, 'Could not dismiss suggestion');
+    expect(toast.error).toHaveBeenNthCalledWith(2, 'Could not accept suggestion');
+  });
+});
