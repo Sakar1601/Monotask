@@ -103,6 +103,24 @@ describe('Microsoft OAuth', () => {
     expect(body.has('scope')).toBe(false);
     expect(tokens.scope).toBe('offline_access Calendars.ReadWrite Tasks.ReadWrite User.Read Mail.Read Chat.Read');
   });
+
+  it('refreshes a token without narrowing consented message scopes', async () => {
+    vi.stubGlobal('Deno', { env: { get: () => 'test-value' } });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      access_token: 'new-access-token',
+      refresh_token: 'new-refresh-token',
+      expires_in: 3600,
+      scope: 'offline_access Calendars.ReadWrite Tasks.ReadWrite User.Read Mail.Read Chat.Read',
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const tokens = await microsoftProvider.refreshToken('refresh-token');
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = new URLSearchParams(init.body);
+    expect(body.has('scope')).toBe(false);
+    expect(tokens.scope).toBe('offline_access Calendars.ReadWrite Tasks.ReadWrite User.Read Mail.Read Chat.Read');
+  });
 });
 
 describe('Microsoft fetch pagination', () => {

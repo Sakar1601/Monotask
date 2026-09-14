@@ -204,7 +204,11 @@ export const microsoftProvider: IntegrationProvider = {
         client_id: Deno.env.get("MICROSOFT_CLIENT_ID")!,
         client_secret: Deno.env.get("MICROSOFT_CLIENT_SECRET")!,
         grant_type: "refresh_token",
-        scope: MICROSOFT_SCOPES,
+        // No scope param - same reasoning as exchangeCode above: sending a
+        // static base scope list here would narrow the refreshed token
+        // away from whatever extra scopes (e.g. Mail.Read/Chat.Read from
+        // enabling message-scanning) were actually granted, silently
+        // breaking that feature ~hourly once the token first refreshes.
       }),
     });
     if (!response.ok) throw new Error(`Microsoft token refresh failed: ${response.status} ${await response.text()}`);
