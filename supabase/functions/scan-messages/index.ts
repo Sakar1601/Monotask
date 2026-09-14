@@ -122,14 +122,6 @@ Deno.serve(async (req: Request) => {
       if (!provider.fetchMessages && !provider.fetchChatMessages) continue;
 
       try {
-        const { data: allowed, error: rateLimitError } = await adminClient.rpc("check_and_increment_ai_usage", {
-          p_feature: "scan-messages",
-          p_daily_limit: DAILY_LIMIT,
-          p_user_id: connection.user_id,
-        });
-        if (rateLimitError) throw rateLimitError;
-        if (!allowed) continue;
-
         const accessToken = await ensureFreshToken(adminClient, connection);
         const windowStart = connection.last_scanned_at
           ? new Date(connection.last_scanned_at)
@@ -157,29 +149,53 @@ Deno.serve(async (req: Request) => {
         ];
 
         if (allMessages.length > 0) {
-          const candidates = await extractTaskCandidates(anthropic, allMessages);
-          if (candidates.length > 0) {
-            const rows = candidates.map((c) => ({
-              user_id: connection.user_id,
-              connection_id: connection.id,
-              kind: "task",
-              payload: {
-                title: c.title.slice(0, 200),
-                description: c.description ?? "",
-                due_date: isValidIsoDate(c.due_date) ? c.due_date : null,
-                due_time: isValidTime(c.due_time) ? c.due_time : null,
-                priority: c.priority,
-              },
-            }));
-            const { error: insertError } = await adminClient.from("ai_suggestions").insert(rows);
-            if (insertError) throw insertError;
+          // Quota is spent here, right before the actual Claude call, not
+          // up front - a run that fetches nothing worth extracting from
+          // (the common case) shouldn't burn a day's-worth of budget on
+          // 10-minute cron ticks that never call the model at all.
+          const { data: allowed, error: rateLimitError } = await adminClient.rpc("check_and_increment_ai_usage", {
+            p_feature: "scan-messages",
+            p_daily_limit: DAILY_LIMIT,
+            p_user_id: connection.user_id,
+          });
+          if (rateLimitError) throw rateLimitError;
+
+          if (allowed) {
+            const candidates = await extractTaskCandidates(anthropic, allMessages);
+            if (candidates.length > 0) {
+              const rows = candidates.map((c) => ({
+                user_id: connection.user_id,
+                connection_id: connection.id,
+                kind: "task",
+                payload: {
+                  title: c.title.slice(0, 200),
+                  description: c.description ?? "",
+                  due_date: isValidIsoDate(c.due_date) ? c.due_date : null,
+                  due_time: isValidTime(c.due_time) ? c.due_time : null,
+                  priority: c.priority,
+                },
+              }));
+              const { error: insertError } = await adminClient.from("ai_suggestions").insert(rows);
+              if (insertError) throw insertError;
+            }
           }
+          // Whether or not quota was available, the messages in this
+          // window have been accounted for (either processed, or
+          // deliberately skipped due to rate limit) - advance the
+          // watermark below either way so a rate-limited run doesn't
+          // re-fetch the same window forever.
         }
 
-        await adminClient
-          .from("integration_connections")
-          .update({ last_scanned_at: new Date().toISOString() })
-          .eq("id", connection.id);
+        // Only advance the watermark if both sources actually succeeded -
+        // a rejected fetch means this window wasn't really scanned, and
+        // advancing anyway would silently lose it forever instead of
+        // retrying it on the next run.
+        if (emailResult.status !== "rejected" && chatResult.status !== "rejected") {
+          await adminClient
+            .from("integration_connections")
+            .update({ last_scanned_at: new Date().toISOString() })
+            .eq("id", connection.id);
+        }
         scanned++;
       } catch (connectionError) {
         console.error(`scan-messages: connection ${connection.id} failed:`, connectionError);
