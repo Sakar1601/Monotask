@@ -179,11 +179,6 @@ Deno.serve(async (req: Request) => {
               if (insertError) throw insertError;
             }
           }
-          // Whether or not quota was available, the messages in this
-          // window have been accounted for (either processed, or
-          // deliberately skipped due to rate limit) - advance the
-          // watermark below either way so a rate-limited run doesn't
-          // re-fetch the same window forever.
         }
 
         // Only advance the watermark if both sources actually succeeded -

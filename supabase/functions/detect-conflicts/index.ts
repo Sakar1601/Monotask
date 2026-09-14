@@ -94,6 +94,7 @@ Deno.serve(async (req: Request) => {
         .select("id, user_id, title, start_time, end_time")
         .gte("start_time", windowStart.toISOString())
         .lte("start_time", windowEnd.toISOString())
+        .order("id", { ascending: true })
         .range(offset, offset + pageSize - 1);
       if (error) throw error;
       events.push(...((page ?? []) as EventRow[]));
