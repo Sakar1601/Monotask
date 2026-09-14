@@ -24,6 +24,7 @@ const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick })
     habits: 'Habits',
     tags: 'Tags',
     progress: 'Progress & Analytics',
+    suggestions: 'Suggestions',
     settings: 'Settings'
   };
 
