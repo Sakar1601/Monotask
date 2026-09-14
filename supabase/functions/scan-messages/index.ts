@@ -1,6 +1,10 @@
 // supabase/functions/scan-messages/index.ts
+// Anthropic SDK imported via npm:, not esm.sh - see the comment in
+// parse-task/index.ts (matches its import) for why: esm.sh's own build
+// of this SDK version's type declarations was failing outright, which
+// broke the whole worker's boot.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.122.0";
+import Anthropic from "npm:@anthropic-ai/sdk@0.122.0";
 import { corsHeaders } from "../_shared/cors.ts";
 import { providers } from "../_shared/integrations/registry.ts";
 import { ensureFreshToken } from "../_shared/integrations/tokenRefresh.ts";

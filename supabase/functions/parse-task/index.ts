@@ -15,8 +15,14 @@
 //   trusted from the model), so a hallucinated tag name can't attach a task
 //   to another user's tag.
 // - check_and_increment_ai_usage enforces a daily call cap server-side.
+// - Imported via the npm: specifier, not esm.sh - esm.sh's own build of
+//   this SDK version's type declarations was failing outright (500,
+//   "package '@types/node-fetch.js' not found"), which made the whole
+//   worker fail to boot since Deno's module graph follows the CDN's
+//   declared X-TypeScript-Types header. npm: resolves locally instead,
+//   sidestepping that CDN-side outage entirely.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.122.0";
+import Anthropic from "npm:@anthropic-ai/sdk@0.122.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const DAILY_LIMIT = 30;

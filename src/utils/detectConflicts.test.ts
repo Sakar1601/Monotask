@@ -1,17 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
-
-vi.hoisted(() => {
-  vi.stubGlobal('Deno', { env: { get: vi.fn() }, serve: vi.fn() });
-});
-
-vi.mock('npm:@supabase/supabase-js@2', () => ({ createClient: vi.fn() }));
-vi.mock('https://esm.sh/@anthropic-ai/sdk@0.122.0', () => ({ default: vi.fn() }));
-
+import { describe, expect, it } from 'vitest';
 import {
   findOverlappingPairs,
   isValidRescheduleSuggestion,
   type EventForConflictCheck,
-} from '../../supabase/functions/detect-conflicts/index.ts';
+} from '../../supabase/functions/detect-conflicts/conflicts.ts';
 
 const event = (id: string, start: string, end: string | null): EventForConflictCheck => ({
   id,
