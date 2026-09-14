@@ -656,19 +656,10 @@ export type Database = {
       }
     }
     Functions: {
-      check_and_increment_ai_usage:
-        | {
-            Args: { p_daily_limit: number; p_feature: string }
-            Returns: boolean
-          }
-        | {
-            Args: {
-              p_daily_limit: number
-              p_feature: string
-              p_user_id?: string
-            }
-            Returns: boolean
-          }
+      check_and_increment_ai_usage: {
+        Args: { p_daily_limit: number; p_feature: string; p_user_id?: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
