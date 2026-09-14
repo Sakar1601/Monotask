@@ -135,11 +135,26 @@ Deno.serve(async (req: Request) => {
           ? new Date(connection.last_scanned_at)
           : new Date(Date.now() - LOOKBACK_HOURS_FIRST_RUN * 60 * 60 * 1000);
 
-        const [emailMessages, chatMessages] = await Promise.all([
+        // allSettled, not all: a connection's granted scope can cover only
+        // one of these two sources (e.g. a personal Microsoft account has
+        // Mail.Read but no Chat.Read to grant, since it has no Teams) -
+        // one source rejecting (typically a 401/403 for a scope this
+        // connection was never granted) shouldn't blank out messages the
+        // other source successfully fetched.
+        const [emailResult, chatResult] = await Promise.allSettled([
           provider.fetchMessages ? provider.fetchMessages(accessToken, windowStart) : Promise.resolve([]),
           provider.fetchChatMessages ? provider.fetchChatMessages(accessToken, windowStart) : Promise.resolve([]),
         ]);
-        const allMessages = [...emailMessages, ...chatMessages];
+        if (emailResult.status === "rejected") {
+          console.error(`scan-messages: connection ${connection.id} email fetch failed:`, emailResult.reason);
+        }
+        if (chatResult.status === "rejected") {
+          console.error(`scan-messages: connection ${connection.id} chat fetch failed:`, chatResult.reason);
+        }
+        const allMessages = [
+          ...(emailResult.status === "fulfilled" ? emailResult.value : []),
+          ...(chatResult.status === "fulfilled" ? chatResult.value : []),
+        ];
 
         if (allMessages.length > 0) {
           const candidates = await extractTaskCandidates(anthropic, allMessages);

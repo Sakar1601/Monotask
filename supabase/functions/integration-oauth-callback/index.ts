@@ -87,13 +87,18 @@ Deno.serve(async (req: Request) => {
     };
 
     // Only flip the toggle on once the actually-granted scope (not just
-    // what was requested) contains every message-scan scope this
-    // provider needs - a user can decline part of a consent screen, and
-    // the toggle should reflect reality, not intent.
+    // what was requested) contains at least one message-scan scope this
+    // provider uses - a user can decline part of a consent screen, and
+    // the toggle should reflect reality, not intent. Requiring *every*
+    // scope would wrongly block scanning for an account that can only
+    // grant part of the set (e.g. a personal Microsoft account has no
+    // Teams to grant Chat.Read for, but Mail.Read still works fine) -
+    // scan-messages independently checks per-source availability, so
+    // partial capability here is a real, useful outcome, not a failure.
     const messageScanGranted =
       stateRow.requesting_message_scan &&
       !!provider.messageScanScopes &&
-      provider.messageScanScopes.split(" ").every((s) => (tokens.scope ?? "").split(" ").includes(s));
+      provider.messageScanScopes.split(" ").some((s) => (tokens.scope ?? "").split(" ").includes(s));
 
     if (messageScanGranted) {
       (connectionFields as Record<string, unknown>).message_scan_enabled = true;
