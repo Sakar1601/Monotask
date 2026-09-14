@@ -32,20 +32,38 @@ const reschedulePayload = {
   reasoning: 'The later time avoids the conflict.',
 };
 
-const childrenOf = (element: any): any[] => {
+// A minimal structural shape for the React elements this file walks -
+// avoids `any` while not pulling in @types/react's full ReactElement
+// generics for what's otherwise a plain object walk. `children`/
+// `onClick`/`onClose` are the only props this file ever reads off a
+// found element.
+interface ElementLike {
+  type: unknown;
+  props: { children?: unknown; onClick?: () => void; onClose?: () => void };
+}
+
+const isElementLike = (value: unknown): value is ElementLike =>
+  !!value && typeof value === 'object' && 'props' in value;
+
+const childrenOf = (element: unknown): unknown[] => {
   if (Array.isArray(element)) return element.flatMap((child) => [child, ...childrenOf(child)]);
-  if (!element || typeof element !== 'object' || !element.props) return [];
+  if (!isElementLike(element)) return [];
   const children = Array.isArray(element.props.children)
     ? element.props.children
     : [element.props.children];
   return children.flatMap((child) => [child, ...childrenOf(child)]);
 };
 
-const findButton = (view: any, label: string) =>
-  [view, ...childrenOf(view)].find((element) => element?.type === Button && element.props.children === label);
+const findButton = (view: unknown, label: string): ElementLike | undefined =>
+  [view, ...childrenOf(view)].find(
+    (element): element is ElementLike =>
+      isElementLike(element) && element.type === Button && element.props.children === label,
+  );
 
-const findTaskModal = (view: any) =>
-  [view, ...childrenOf(view)].find((element) => element?.type === TaskModal);
+const findTaskModal = (view: unknown): ElementLike | undefined =>
+  [view, ...childrenOf(view)].find(
+    (element): element is ElementLike => isElementLike(element) && element.type === TaskModal,
+  );
 
 describe('SuggestionsView', () => {
   const accept = vi.fn();

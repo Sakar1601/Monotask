@@ -99,7 +99,7 @@ export const useTasks = () => {
       }
       
       console.log('Created task:', data);
-      return data;
+      return data as Task;
     },
     onSuccess: (newTask) => {
       console.log('Task created successfully, updating cache');
@@ -144,7 +144,7 @@ export const useTasks = () => {
         .single();
 
       if (error) throw error;
-      return data;
+      return data as Task;
     },
     onSuccess: (updatedTask) => {
       queryClient.setQueryData(['tasks', user?.id], (oldTasks: Task[] = []) => {

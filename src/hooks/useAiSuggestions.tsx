@@ -36,6 +36,54 @@ export type AiSuggestion =
       payload: RescheduleSuggestionPayload;
     });
 
+// The DB row's payload column is jsonb (typed as Json, not this union) -
+// a straight `as AiSuggestion[]` cast would compile-error (the shapes
+// don't overlap enough for TS to allow it) and, even if forced, would
+// give no runtime protection against a malformed row reaching the UI as
+// something like an `Invalid Date`. Validate structurally instead.
+const isTaskPayload = (value: unknown): value is TaskSuggestionPayload => {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.title === 'string' &&
+    typeof v.description === 'string' &&
+    (typeof v.due_date === 'string' || v.due_date === null) &&
+    (typeof v.due_time === 'string' || v.due_time === null) &&
+    (v.priority === 'low' || v.priority === 'medium' || v.priority === 'high')
+  );
+};
+
+const isReschedulePayload = (value: unknown): value is RescheduleSuggestionPayload => {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.event_id === 'string' &&
+    typeof v.other_event_id === 'string' &&
+    typeof v.current_start_time === 'string' &&
+    (typeof v.current_end_time === 'string' || v.current_end_time === null) &&
+    typeof v.suggested_start_time === 'string' &&
+    typeof v.suggested_end_time === 'string' &&
+    typeof v.reasoning === 'string'
+  );
+};
+
+interface AiSuggestionRow {
+  id: string;
+  kind: string;
+  payload: unknown;
+  created_at: string;
+}
+
+function parseSuggestion(row: AiSuggestionRow): AiSuggestion | null {
+  if (row.kind === 'task' && isTaskPayload(row.payload)) {
+    return { id: row.id, created_at: row.created_at, kind: 'task', payload: row.payload };
+  }
+  if (row.kind === 'reschedule' && isReschedulePayload(row.payload)) {
+    return { id: row.id, created_at: row.created_at, kind: 'reschedule', payload: row.payload };
+  }
+  return null;
+}
+
 export const useAiSuggestions = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -50,7 +98,9 @@ export const useAiSuggestions = () => {
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data as AiSuggestion[];
+      return ((data ?? []) as AiSuggestionRow[])
+        .map(parseSuggestion)
+        .filter((s): s is AiSuggestion => s !== null);
     },
     enabled: !!user,
   });

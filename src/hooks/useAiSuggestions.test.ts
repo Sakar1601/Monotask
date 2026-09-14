@@ -27,9 +27,18 @@ const suggestion: AiSuggestion = {
   created_at: '2026-09-13T12:00:00Z',
 };
 
+// Matches the exact shape both mutations in useAiSuggestions.tsx pass
+// to useMutation - narrow enough to call directly in tests below
+// without falling back to `any`.
+interface MutationOptions {
+  mutationFn: (id: string) => Promise<void>;
+  onSuccess: () => void;
+  onError?: () => void;
+}
+
 describe('useAiSuggestions', () => {
   const invalidateQueries = vi.fn();
-  const mutationOptions: Array<Record<string, any>> = [];
+  const mutationOptions: MutationOptions[] = [];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -37,7 +46,7 @@ describe('useAiSuggestions', () => {
     useAuth.mockReturnValue({ user: { id: 'user-1' } });
     useQueryClient.mockReturnValue({ invalidateQueries });
     useQuery.mockReturnValue({ data: [suggestion], isLoading: false });
-    useMutation.mockImplementation((options: Record<string, any>) => {
+    useMutation.mockImplementation((options: MutationOptions) => {
       mutationOptions.push(options);
       return { mutate: vi.fn() };
     });
@@ -91,10 +100,13 @@ describe('useAiSuggestions', () => {
       created_at: '2026-09-13T12:01:00Z',
     };
 
-    const taskTitle = suggestion.kind === 'task' ? suggestion.payload.title : suggestion.payload.reasoning;
-    const rescheduleReasoning = rescheduleSuggestion.kind === 'reschedule'
-      ? rescheduleSuggestion.payload.reasoning
-      : rescheduleSuggestion.payload.title;
+    // suggestion/rescheduleSuggestion are each declared with a literal
+    // `kind`, so TS already narrows `payload` to the matching member of
+    // the union at this point - accessing the field directly is what
+    // proves that narrowing works, rather than a runtime check TS can
+    // already prove is always true (the "opposite" branch is `never`).
+    const taskTitle = suggestion.payload.title;
+    const rescheduleReasoning = rescheduleSuggestion.payload.reasoning;
 
     expect(taskTitle).toBe('Send report');
     expect(rescheduleReasoning).toBe('The later time avoids the conflict.');
