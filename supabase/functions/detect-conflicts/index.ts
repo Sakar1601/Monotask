@@ -82,15 +82,27 @@ Deno.serve(async (req: Request) => {
     const windowStart = new Date(now.getTime() - WINDOW_DAYS_PAST * 86_400_000);
     const windowEnd = new Date(now.getTime() + WINDOW_DAYS_FUTURE * 86_400_000);
 
-    const { data: events, error } = await adminClient
-      .from("events")
-      .select("id, user_id, title, start_time, end_time")
-      .gte("start_time", windowStart.toISOString())
-      .lte("start_time", windowEnd.toISOString());
-    if (error) throw error;
+    // Paginated the same way sync-integrations paginates its existing-row
+    // lookups: PostgREST caps an unbounded select at 1000 rows by default,
+    // and this window can easily hold more than that across all users.
+    const events: EventRow[] = [];
+    const pageSize = 1_000;
+    let offset = 0;
+    while (true) {
+      const { data: page, error } = await adminClient
+        .from("events")
+        .select("id, user_id, title, start_time, end_time")
+        .gte("start_time", windowStart.toISOString())
+        .lte("start_time", windowEnd.toISOString())
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      events.push(...((page ?? []) as EventRow[]));
+      if ((page?.length ?? 0) < pageSize) break;
+      offset += pageSize;
+    }
 
     const byUser = new Map<string, EventRow[]>();
-    for (const e of (events ?? []) as EventRow[]) {
+    for (const e of events) {
       const list = byUser.get(e.user_id) ?? [];
       list.push(e);
       byUser.set(e.user_id, list);
@@ -106,7 +118,7 @@ Deno.serve(async (req: Request) => {
         .select("payload")
         .eq("user_id", userId)
         .eq("kind", "reschedule")
-        .eq("status", "pending");
+        .in("status", ["pending", "dismissed"]);
       if (pendingError) throw pendingError;
       const alreadySuggested = new Set(
         (pending ?? []).map((row) => {
