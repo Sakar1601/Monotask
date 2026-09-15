@@ -6,9 +6,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk@0.122.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import { authorizeScheduledRequest } from "../_shared/scheduledRequestAuth.ts";
 import { providers } from "../_shared/integrations/registry.ts";
 import { ensureFreshToken } from "../_shared/integrations/tokenRefresh.ts";
 import type { ExternalMessage } from "../_shared/integrations/types.ts";
+import { prepareMessagesForTaskExtraction } from "./messagePreparation.ts";
 
 const DAILY_LIMIT = 20;
 const MODEL = "claude-haiku-4-5";
@@ -70,9 +72,7 @@ const VALID_PRIORITIES = new Set(["low", "medium", "high"]);
 async function extractTaskCandidates(anthropic: Anthropic, messages: ExternalMessage[]): Promise<TaskCandidate[]> {
   if (messages.length === 0) return [];
   const today = new Date().toISOString().split("T")[0];
-  const messagesText = messages
-    .map((m, i) => `[${i + 1}] From: ${m.sender ?? "unknown"}${m.subject ? ` | Subject: ${m.subject}` : ""}\n${m.snippet}`)
-    .join("\n\n");
+  const { text: messagesText } = prepareMessagesForTaskExtraction(messages);
 
   const response = await anthropic.messages.create({
     model: MODEL,
@@ -106,7 +106,11 @@ Deno.serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const adminClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const authError = authorizeScheduledRequest(req, serviceRoleKey);
+    if (authError) return authError;
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey!);
     const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
 
     const { data: connections, error } = await adminClient
@@ -153,7 +157,7 @@ Deno.serve(async (req: Request) => {
           // up front - a run that fetches nothing worth extracting from
           // (the common case) shouldn't burn a day's-worth of budget on
           // 10-minute cron ticks that never call the model at all.
-          const { data: allowed, error: rateLimitError } = await adminClient.rpc("check_and_increment_ai_usage", {
+          const { data: allowed, error: rateLimitError } = await adminClient.rpc("check_and_increment_ai_usage_for_user", {
             p_feature: "scan-messages",
             p_daily_limit: DAILY_LIMIT,
             p_user_id: connection.user_id,

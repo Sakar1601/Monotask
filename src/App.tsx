@@ -9,6 +9,7 @@ import Landing from "./pages/Landing";
 import AuthPage from "./pages/Auth";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import OAuthCallback from "./pages/OAuthCallback";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +24,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/auth" element={<AuthPage />} />
+                <Route path="/oauth/callback" element={<OAuthCallback />} />
                 <Route path="/app" element={<Index />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

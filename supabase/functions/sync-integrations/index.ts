@@ -77,13 +77,13 @@ async function syncConnection(adminClient: ReturnType<typeof createClient>, conn
     const windowStart = new Date(now.getTime() - WINDOW_DAYS_PAST * 86_400_000);
     const windowEnd = new Date(now.getTime() + WINDOW_DAYS_FUTURE * 86_400_000);
 
-    const [events, tasks] = await Promise.all([
+    const [eventSnapshot, taskSnapshot] = await Promise.all([
       provider.fetchEvents(accessToken, windowStart, windowEnd),
       provider.fetchTasks(accessToken, windowStart, providerMetadata),
     ]);
 
-    await upsertEvents(adminClient, connection, accessToken, events, syncStartedAt);
-    await upsertTasks(adminClient, connection, accessToken, tasks, syncStartedAt, providerMetadata);
+    await upsertEvents(adminClient, connection, accessToken, eventSnapshot.items, syncStartedAt, eventSnapshot.complete);
+    await upsertTasks(adminClient, connection, accessToken, taskSnapshot.items, syncStartedAt, providerMetadata, taskSnapshot.complete);
 
     await adminClient
       .from("integration_connections")
@@ -107,6 +107,7 @@ async function upsertEvents(
   accessToken: string,
   events: ExternalEvent[],
   syncStartedAt: string,
+  deleteStale: boolean,
 ) {
   // Load existing rows for this connection to decide, per fetched event,
   // whether it has an unconfirmed local edit that should block overwrite.
@@ -250,14 +251,16 @@ async function upsertEvents(
     }
   }
 
-  // Anything for this connection not confirmed present in Google this run
-  // (neither upserted nor touched above) is gone from Google.
-  const { error: deleteError } = await adminClient
-    .from("events")
-    .delete()
-    .eq("sync_connection_id", connection.id)
-    .or(`last_seen_at.is.null,last_seen_at.lt.${syncStartedAt}`);
-  if (deleteError) throw deleteError;
+  if (deleteStale) {
+    // Anything for this connection not confirmed present in the provider this
+    // run (neither upserted nor touched above) is gone from the provider.
+    const { error: deleteError } = await adminClient
+      .from("events")
+      .delete()
+      .eq("sync_connection_id", connection.id)
+      .or(`last_seen_at.is.null,last_seen_at.lt.${syncStartedAt}`);
+    if (deleteError) throw deleteError;
+  }
 }
 
 async function upsertTasks(
@@ -267,6 +270,7 @@ async function upsertTasks(
   tasks: ExternalTask[],
   syncStartedAt: string,
   providerMetadata: Record<string, unknown> | null,
+  deleteStale: boolean,
 ) {
   // priority has no Google Tasks equivalent - the plan's upsert would
   // otherwise reset it to "medium" on every 10-minute resync, silently
@@ -406,17 +410,19 @@ async function upsertTasks(
     }
   }
 
-  // Same last_seen_at-cutoff stale delete pattern as upsertEvents. Because
-  // fetchTasks now requests showCompleted=true (Task 3), a task completed
-  // in Google still appears in this run's fetch (status: 'completed') and
-  // is NOT deleted here - only a task actually removed/unshared in Google
-  // is now absent and gets cleaned up.
-  const { error: deleteError } = await adminClient
-    .from("tasks")
-    .delete()
-    .eq("sync_connection_id", connection.id)
-    .or(`last_seen_at.is.null,last_seen_at.lt.${syncStartedAt}`);
-  if (deleteError) throw deleteError;
+  if (deleteStale) {
+    // Same last_seen_at-cutoff stale delete pattern as upsertEvents. Because
+    // fetchTasks requests showCompleted=true, a completed provider task still
+    // appears in this run's complete fetch (status: 'completed') and is NOT
+    // deleted here - only a task actually removed/unshared in the provider is
+    // absent and cleaned up.
+    const { error: deleteError } = await adminClient
+      .from("tasks")
+      .delete()
+      .eq("sync_connection_id", connection.id)
+      .or(`last_seen_at.is.null,last_seen_at.lt.${syncStartedAt}`);
+    if (deleteError) throw deleteError;
+  }
 }
 
 Deno.serve(async (req: Request) => {
