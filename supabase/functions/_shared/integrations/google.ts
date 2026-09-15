@@ -1,4 +1,5 @@
-import type { EventChanges, ExternalEvent, ExternalMessage, ExternalTask, IntegrationProvider, TaskChanges, TokenSet } from "./types.ts";
+import type { EventChanges, ExternalEvent, ExternalMessage, ExternalTask, IntegrationProvider, ProviderSnapshot, TaskChanges, TokenSet } from "./types.ts";
+import { providerHttpError } from "./providerErrors.ts";
 
 const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar",
@@ -113,7 +114,7 @@ export const googleProvider: IntegrationProvider = {
         grant_type: "authorization_code",
       }),
     });
-    if (!response.ok) throw new Error(`Google token exchange failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw providerHttpError("Google", "token exchange", response);
     return tokenSetFromResponse(await response.json());
   },
 
@@ -128,11 +129,11 @@ export const googleProvider: IntegrationProvider = {
         grant_type: "refresh_token",
       }),
     });
-    if (!response.ok) throw new Error(`Google token refresh failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw providerHttpError("Google", "token refresh", response);
     return tokenSetFromResponse(await response.json(), refreshToken);
   },
 
-  async fetchEvents(accessToken: string, windowStart: Date, windowEnd: Date): Promise<ExternalEvent[]> {
+  async fetchEvents(accessToken: string, windowStart: Date, windowEnd: Date): Promise<ProviderSnapshot<ExternalEvent>> {
     const params = new URLSearchParams({
       timeMin: windowStart.toISOString(),
       timeMax: windowEnd.toISOString(),
@@ -150,16 +151,16 @@ export const googleProvider: IntegrationProvider = {
         `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
-      if (!response.ok) throw new Error(`Google calendar fetch failed: ${response.status} ${await response.text()}`);
+      if (!response.ok) throw providerHttpError("Google", "calendar fetch", response);
       const json = await response.json() as { items?: GoogleCalendarEventPayload[]; nextPageToken?: string };
       events.push(...(json.items ?? []).map(mapGoogleEvent).filter((e): e is ExternalEvent => e !== null));
       pageToken = json.nextPageToken;
       pageCount++;
     } while (pageToken && pageCount < MAX_PAGES);
-    return events;
+    return { items: events, complete: !pageToken };
   },
 
-  async fetchTasks(accessToken: string, completedMin: Date): Promise<ExternalTask[]> {
+  async fetchTasks(accessToken: string, completedMin: Date): Promise<ProviderSnapshot<ExternalTask>> {
     // showCompleted+showHidden (Google Tasks hides completed tasks by
     // default) makes completion status sync in instead of the task
     // silently vanishing - but combined with unbounded pagination that
@@ -183,13 +184,13 @@ export const googleProvider: IntegrationProvider = {
         `https://tasks.googleapis.com/tasks/v1/lists/@default/tasks?${params.toString()}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
-      if (!response.ok) throw new Error(`Google tasks fetch failed: ${response.status} ${await response.text()}`);
+      if (!response.ok) throw providerHttpError("Google", "tasks fetch", response);
       const json = await response.json() as { items?: GoogleTaskPayload[]; nextPageToken?: string };
       tasks.push(...(json.items ?? []).map(mapGoogleTask).filter((t): t is ExternalTask => t !== null));
       pageToken = json.nextPageToken;
       pageCount++;
     } while (pageToken && pageCount < MAX_PAGES);
-    return tasks;
+    return { items: tasks, complete: !pageToken };
   },
 
   async updateEvent(accessToken: string, googleEventId: string, changes: EventChanges): Promise<void> {
@@ -208,7 +209,7 @@ export const googleProvider: IntegrationProvider = {
         body: JSON.stringify(body),
       },
     );
-    if (!response.ok) throw new Error(`Google event update failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw providerHttpError("Google", "event update", response);
   },
 
   async deleteEvent(accessToken: string, googleEventId: string): Promise<void> {
@@ -219,7 +220,7 @@ export const googleProvider: IntegrationProvider = {
     // Google returns 410 Gone if the event was already deleted on their side -
     // treat that the same as success, since the end state (gone) matches.
     if (!response.ok && response.status !== 410) {
-      throw new Error(`Google event delete failed: ${response.status} ${await response.text()}`);
+      throw providerHttpError("Google", "event delete", response);
     }
   },
 
@@ -237,7 +238,7 @@ export const googleProvider: IntegrationProvider = {
         body: JSON.stringify(body),
       },
     );
-    if (!response.ok) throw new Error(`Google task update failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw providerHttpError("Google", "task update", response);
   },
 
   async deleteTask(accessToken: string, googleTaskId: string): Promise<void> {
@@ -246,7 +247,7 @@ export const googleProvider: IntegrationProvider = {
       { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } },
     );
     if (!response.ok && response.status !== 410) {
-      throw new Error(`Google task delete failed: ${response.status} ${await response.text()}`);
+      throw providerHttpError("Google", "task delete", response);
     }
   },
 
@@ -255,7 +256,7 @@ export const googleProvider: IntegrationProvider = {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!response.ok) {
-      console.error(`Google getAccountEmail failed: ${response.status} ${await response.text()}`);
+      console.error(providerHttpError("Google", "getAccountEmail", response).message);
       return null;
     }
     const json = await response.json() as { email?: string };
@@ -281,7 +282,7 @@ export const googleProvider: IntegrationProvider = {
         `https://gmail.googleapis.com/gmail/v1/users/me/messages?${listParams.toString()}`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
-      if (!listResponse.ok) throw new Error(`Gmail message list failed: ${listResponse.status} ${await listResponse.text()}`);
+      if (!listResponse.ok) throw providerHttpError("Gmail", "message list", listResponse);
       const listJson = await listResponse.json() as { messages?: { id: string }[]; nextPageToken?: string };
 
       for (const { id } of listJson.messages ?? []) {
@@ -292,7 +293,7 @@ export const googleProvider: IntegrationProvider = {
           `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?${detailParams.toString()}`,
           { headers: { Authorization: `Bearer ${accessToken}` } },
         );
-        if (!detailResponse.ok) throw new Error(`Gmail message fetch failed: ${detailResponse.status} ${await detailResponse.text()}`);
+        if (!detailResponse.ok) throw providerHttpError("Gmail", "message fetch", detailResponse);
         const mapped = mapGmailMessage(await detailResponse.json());
         if (mapped) messages.push(mapped);
       }

@@ -27,6 +27,23 @@ describe('escapeCsvField', () => {
   it('does not double-escape a field with no special characters', () => {
     expect(escapeCsvField('plain text')).toBe('plain text');
   });
+
+  it('neutralizes spreadsheet formulas before structural CSV escaping', () => {
+    expect(escapeCsvField('=IMPORTXML("https://example.com", "//title")')).toBe(
+      '"\'=IMPORTXML(""https://example.com"", ""//title"")"',
+    );
+    expect(escapeCsvField('+SUM(1,2)')).toBe(`"'+SUM(1,2)"`);
+    expect(escapeCsvField('-10')).toBe("'-10");
+    expect(escapeCsvField('@cmd')).toBe("'@cmd");
+  });
+
+  it('neutralizes formulas after leading whitespace and control characters', () => {
+    expect(escapeCsvField('  =1+1')).toBe("'  =1+1");
+    expect(escapeCsvField('\t@HYPERLINK("https://example.com")')).toBe(
+      `"'\t@HYPERLINK(""https://example.com"")"`,
+    );
+    expect(escapeCsvField('\r+1')).toBe(`"'\r+1"`);
+  });
 });
 
 describe('toCsvRow', () => {

@@ -2,18 +2,19 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { providers } from "../_shared/integrations/registry.ts";
+import { oauthRedirectUriFor } from "../integration-oauth-callback/oauthCallbackSecurity.ts";
 
-// OAUTH_CALLBACK_URL overrides the externally-reachable URL Google should
-// redirect back to. SUPABASE_URL alone is wrong for this: inside the local
-// Edge Runtime container it resolves to Docker's internal hostname
-// (http://kong:8000), which is neither registered with Google nor publicly
-// reachable, and Google rejects it outright ("Error 400: invalid_request").
-// In most deployed projects SUPABASE_URL is already the public
-// https://<project>.supabase.co address, so the fallback covers that case
-// with no extra configuration - only local dev needs the override set:
-//   supabase secrets set OAUTH_CALLBACK_URL=http://127.0.0.1:54321/functions/v1/integration-oauth-callback
+// OAuth should redirect to the browser app, not directly to the Edge Function:
+// the app then calls integration-oauth-callback with the current Monotask JWT.
+// That binds completion to the user who is actually signed in, preventing a
+// transferred attacker-owned authorize URL from attaching a victim provider
+// account to the attacker's tenant.
 function redirectUriFor(supabaseUrl: string): string {
-  return Deno.env.get("OAUTH_CALLBACK_URL") ?? `${supabaseUrl}/functions/v1/integration-oauth-callback`;
+  return oauthRedirectUriFor({
+    appOrigin: Deno.env.get("APP_ORIGIN"),
+    oauthCallbackUrl: Deno.env.get("OAUTH_CALLBACK_URL"),
+    supabaseUrl,
+  });
 }
 
 Deno.serve(async (req: Request) => {

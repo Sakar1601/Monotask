@@ -17,10 +17,17 @@ export interface ConflictPair {
   eventB: EventForConflictCheck;
 }
 
-// Pure and exported so it can be unit-tested without a database or
-// network - see src/utils/detectConflicts.test.ts.
-export function findOverlappingPairs(events: EventForConflictCheck[]): ConflictPair[] {
+export interface ConflictPairSearchResult {
+  pairs: ConflictPair[];
+  truncated: boolean;
+}
+
+export function findOverlappingPairsWithinBudget(
+  events: EventForConflictCheck[],
+  maxPairs: number,
+): ConflictPairSearchResult {
   const pairs: ConflictPair[] = [];
+  const budget = Math.max(0, maxPairs);
   const sorted = [...events].sort((a, b) => a.start_time.localeCompare(b.start_time));
   for (let i = 0; i < sorted.length; i++) {
     const a = sorted[i];
@@ -38,11 +45,20 @@ export function findOverlappingPairs(events: EventForConflictCheck[]): ConflictP
         a.start_time < bEnd &&
         b.start_time < aEnd
       ) {
+        if (pairs.length >= budget) {
+          return { pairs, truncated: true };
+        }
         pairs.push({ eventA: a, eventB: b });
       }
     }
   }
-  return pairs;
+  return { pairs, truncated: false };
+}
+
+// Pure and exported so it can be unit-tested without a database or
+// network - see src/utils/detectConflicts.test.ts.
+export function findOverlappingPairs(events: EventForConflictCheck[]): ConflictPair[] {
+  return findOverlappingPairsWithinBudget(events, Number.MAX_SAFE_INTEGER).pairs;
 }
 
 export interface RescheduleSuggestion {

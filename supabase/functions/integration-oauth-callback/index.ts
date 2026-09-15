@@ -1,10 +1,8 @@
 // supabase/functions/integration-oauth-callback/index.ts
-// Called directly by Google's browser redirect, so it never carries a
-// Monotask Authorization header - the "state" row from oauth_states is
-// what recovers which user started the flow. Runs entirely on the service
-// role, since there is no user session to attach to a client.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "../_shared/cors.ts";
 import { providers } from "../_shared/integrations/registry.ts";
+import { isStateOwner, oauthRedirectUriFor } from "./oauthCallbackSecurity.ts";
 
 // REQUIRED SECRET: APP_ORIGIN
 //
@@ -26,36 +24,79 @@ function appRedirect(req: Request, status: "connected" | "error", provider?: str
 }
 
 Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   // Hoisted so the catch block can still name the provider in its error
   // redirect if the failure happened after the state row was resolved.
   let providerId: string | undefined;
   try {
-    const url = new URL(req.url);
-    const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
-    if (!code || !state) return appRedirect(req, "error");
+    if (req.method !== "POST") return appRedirect(req, "error");
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { code, state } = await req.json();
+    if (typeof code !== "string" || typeof state !== "string") {
+      return new Response(JSON.stringify({ error: "Missing OAuth callback parameters" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Not authenticated" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const adminClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const { data: stateRow, error: stateError } = await adminClient
-      .from("oauth_states")
-      .select("user_id, provider, connection_id, requesting_message_scan")
-      .eq("state", state)
-      .maybeSingle();
-    if (stateError || !stateRow) return appRedirect(req, "error");
+    const { data: consumedState, error: stateError } = await adminClient
+      .rpc("consume_oauth_state", { p_state: state });
+    const stateRow = Array.isArray(consumedState) ? consumedState[0] : consumedState;
+    if (stateError || !stateRow) {
+      return new Response(JSON.stringify({ error: "Invalid or expired OAuth state" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     providerId = stateRow.provider;
-
-    // Consume the state token so it can't be replayed.
-    await adminClient.from("oauth_states").delete().eq("state", state);
+    if (!isStateOwner({ stateUserId: stateRow.user_id, authenticatedUserId: user.id })) {
+      return new Response(JSON.stringify({ error: "OAuth state does not belong to the authenticated user" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const provider = providers[stateRow.provider];
-    if (!provider) return appRedirect(req, "error");
+    if (!provider) {
+      return new Response(JSON.stringify({ error: "Unsupported provider" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Must be byte-identical to the redirect_uri integration-oauth-start sent
     // in the original authorize request - see OAUTH_CALLBACK_URL's doc
     // comment there for why SUPABASE_URL alone isn't safe to use here.
-    const redirectUri = Deno.env.get("OAUTH_CALLBACK_URL") ?? `${supabaseUrl}/functions/v1/integration-oauth-callback`;
+    const redirectUri = oauthRedirectUriFor({
+      appOrigin: Deno.env.get("APP_ORIGIN"),
+      oauthCallbackUrl: Deno.env.get("OAUTH_CALLBACK_URL"),
+      supabaseUrl,
+    });
     const tokens = await provider.exchangeCode(code, redirectUri);
 
     // Best-effort - shown in Settings so a user can tell which account is
@@ -120,9 +161,14 @@ Deno.serve(async (req: Request) => {
       if (insertError) throw insertError;
     }
 
-    return appRedirect(req, "connected", stateRow.provider);
+    return new Response(JSON.stringify({ status: "connected", provider: stateRow.provider }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (error) {
     console.error("integration-oauth-callback error:", error);
-    return appRedirect(req, "error", providerId);
+    return new Response(JSON.stringify({ error: "Failed to complete OAuth flow", provider: providerId }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

@@ -5,8 +5,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk@0.122.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import { authorizeScheduledRequest } from "../_shared/scheduledRequestAuth.ts";
 import {
-  findOverlappingPairs,
+  findOverlappingPairsWithinBudget,
   isValidRescheduleSuggestion,
   type EventForConflictCheck,
   type RescheduleSuggestion,
@@ -16,6 +17,7 @@ const DAILY_LIMIT = 10;
 const MODEL = "claude-haiku-4-5";
 const WINDOW_DAYS_PAST = 1;
 const WINDOW_DAYS_FUTURE = 30;
+const MAX_CONFLICT_PAIRS_PER_USER_RUN = 100;
 
 interface EventRow extends EventForConflictCheck {
   user_id: string;
@@ -75,7 +77,11 @@ Deno.serve(async (req: Request) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const adminClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const authError = authorizeScheduledRequest(req, serviceRoleKey);
+    if (authError) return authError;
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey!);
     const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
 
     const now = new Date();
@@ -111,7 +117,10 @@ Deno.serve(async (req: Request) => {
 
     let suggestionsCreated = 0;
     for (const [userId, userEvents] of byUser) {
-      const pairs = findOverlappingPairs(userEvents);
+      const { pairs, truncated } = findOverlappingPairsWithinBudget(userEvents, MAX_CONFLICT_PAIRS_PER_USER_RUN);
+      if (truncated) {
+        console.warn(`detect-conflicts: user ${userId} exceeded conflict pair budget for this run`);
+      }
       if (pairs.length === 0) continue;
 
       const { data: pending, error: pendingError } = await adminClient
@@ -132,7 +141,7 @@ Deno.serve(async (req: Request) => {
         const pairKey = [eventA.id, eventB.id].sort().join("|");
         if (alreadySuggested.has(pairKey)) continue;
 
-        const { data: allowed, error: rateLimitError } = await adminClient.rpc("check_and_increment_ai_usage", {
+        const { data: allowed, error: rateLimitError } = await adminClient.rpc("check_and_increment_ai_usage_for_user", {
           p_feature: "detect-conflicts",
           p_daily_limit: DAILY_LIMIT,
           p_user_id: userId,

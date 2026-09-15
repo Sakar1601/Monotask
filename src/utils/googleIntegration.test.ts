@@ -26,7 +26,8 @@ describe('Google Tasks pull fidelity', () => {
     const completedMin = new Date('2026-09-10T00:00:00Z');
     const tasks = await googleProvider.fetchTasks('token', completedMin);
 
-    expect(tasks.map((task) => task.externalId)).toEqual(['task-1', 'task-2']);
+    expect(tasks.items.map((task) => task.externalId)).toEqual(['task-1', 'task-2']);
+    expect(tasks.complete).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[0][0]).toContain('showCompleted=true');
     expect(fetchMock.mock.calls[0][0]).toContain('showHidden=true');
@@ -46,7 +47,8 @@ describe('Google Tasks pull fidelity', () => {
     const tasks = await googleProvider.fetchTasks('token', new Date());
 
     expect(fetchMock).toHaveBeenCalledTimes(20);
-    expect(tasks).toHaveLength(20);
+    expect(tasks.items).toHaveLength(20);
+    expect(tasks.complete).toBe(false);
   });
 });
 
