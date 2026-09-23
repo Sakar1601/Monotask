@@ -4,8 +4,26 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    # One PR for all minor/patch bumps instead of one per package - each
+    # PR triggers a CI run and a Vercel preview deploy, and a dozen at once
+    # exhausts Vercel's daily deployment limit (failing unrelated previews).
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     ignore:
+      # Major bumps that need real migration work, verified to fail CI:
+      # vite 8 conflicts with @vitejs/plugin-react-swc's peer range,
+      # TypeScript 7 (native port) breaks the typescript-eslint toolchain,
+      # recharts 3 and react-day-picker 10 change their component APIs.
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "recharts"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-day-picker"
+        update-types: ["version-update:semver-major"]
       # React 19 is a deliberate migration (every Radix UI primitive,
       # react-hook-form, framer-motion, react-day-picker, embla-carousel,
       # recharts, vaul, and cmdk would need individual compatibility
