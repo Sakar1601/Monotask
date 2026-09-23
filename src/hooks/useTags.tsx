@@ -135,6 +135,18 @@ export const useTags = () => {
       if (error) throw error;
       return tagId;
     },
+    onMutate: async (tagId: string) => {
+      await queryClient.cancelQueries({ queryKey: ['tags', user?.id] });
+      await queryClient.cancelQueries({ queryKey: ['tags-with-usage', user?.id] });
+
+      const previousTags = queryClient.getQueryData<Tag[]>(['tags', user?.id]);
+      const previousTagsWithUsage = queryClient.getQueryData<Tag[]>(['tags-with-usage', user?.id]);
+
+      queryClient.setQueryData<Tag[]>(['tags', user?.id], (old = []) => old.filter(tag => tag.id !== tagId));
+      queryClient.setQueryData<Tag[]>(['tags-with-usage', user?.id], (old = []) => old.filter(tag => tag.id !== tagId));
+
+      return { previousTags, previousTagsWithUsage };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] });
       queryClient.invalidateQueries({ queryKey: ['tags-with-usage'] });
@@ -142,7 +154,13 @@ export const useTags = () => {
       queryClient.invalidateQueries({ queryKey: ['habits'] });
       toast.success('Tag deleted successfully');
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _tagId, context) => {
+      if (context?.previousTags) {
+        queryClient.setQueryData(['tags', user?.id], context.previousTags);
+      }
+      if (context?.previousTagsWithUsage) {
+        queryClient.setQueryData(['tags-with-usage', user?.id], context.previousTagsWithUsage);
+      }
       toast.error('Failed to delete tag');
     },
   });

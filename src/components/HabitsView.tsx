@@ -1,25 +1,283 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, CheckCircle, XCircle, Clock, Edit, Trash2, Pause } from 'lucide-react';
-import { useHabits } from '@/hooks/useHabits';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Plus, CheckCircle2, XCircle, Clock, Pencil, Trash2, PauseCircle, Flame, Repeat } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useHabits, Habit, HabitLog } from '@/hooks/useHabits';
 import HabitModal from '@/components/HabitModal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
+const STATUS_BADGE: Record<string, string> = {
+  completed: 'border-transparent bg-primary/15 text-primary',
+  skipped: 'border-transparent bg-muted text-muted-foreground',
+  failed: 'border-transparent bg-destructive/15 text-destructive',
+};
+
+// Consecutive-day streak of completed logs, walking back from today (or
+// yesterday, so a not-yet-logged today doesn't zero out an active streak).
+const computeStreak = (habitId: string, logs: HabitLog[]): number => {
+  const completedDates = new Set(
+    logs.filter(log => log.habit_id === habitId && log.status === 'completed').map(log => log.date)
+  );
+  if (completedDates.size === 0) return 0;
+
+  const toDateStr = (d: Date) => d.toISOString().split('T')[0];
+  const today = new Date();
+  const cursor = new Date(today);
+  if (!completedDates.has(toDateStr(cursor))) {
+    cursor.setDate(cursor.getDate() - 1);
+    if (!completedDates.has(toDateStr(cursor))) return 0;
+  }
+
+  let streak = 0;
+  while (completedDates.has(toDateStr(cursor))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+};
+
+// Round-number streaks (weekly, monthly) get a bigger, one-off celebratory
+// flourish on the flame instead of the usual calm idle pulse.
+const isMilestoneStreak = (streak: number) => streak > 0 && (streak % 30 === 0 || streak % 7 === 0);
+
+const HabitRow: React.FC<{
+  habit: Habit;
+  index: number;
+  todayLog?: HabitLog;
+  streak: number;
+  isLogging: boolean;
+  isDeleting: boolean;
+  reduceMotion: boolean;
+  getFrequencyDisplay: (habit: Habit) => string;
+  onLog: (habitId: string, status: 'completed' | 'skipped' | 'failed') => void;
+  onEdit: (habit: Habit) => void;
+  onDelete: (habitId: string) => void;
+}> = ({ habit, index, todayLog, streak, isLogging, isDeleting, reduceMotion, getFrequencyDisplay, onLog, onEdit, onDelete }) => {
+  const prevStreak = useRef(streak);
+  const [celebrate, setCelebrate] = useState(false);
+  const prevStatus = useRef(todayLog?.status);
+  const [justCompleted, setJustCompleted] = useState(false);
+
+  useEffect(() => {
+    if (streak > prevStreak.current && isMilestoneStreak(streak)) {
+      setCelebrate(true);
+      const timer = setTimeout(() => setCelebrate(false), 900);
+      prevStreak.current = streak;
+      return () => clearTimeout(timer);
+    }
+    prevStreak.current = streak;
+  }, [streak]);
+
+  // Brief acknowledgment pulse on the row itself whenever a habit is freshly
+  // marked done, separate from the bigger milestone-streak flourish above.
+  useEffect(() => {
+    if (todayLog?.status === 'completed' && prevStatus.current !== 'completed') {
+      setJustCompleted(true);
+      const timer = setTimeout(() => setJustCompleted(false), 500);
+      prevStatus.current = todayLog?.status;
+      return () => clearTimeout(timer);
+    }
+    prevStatus.current = todayLog?.status;
+  }, [todayLog?.status]);
+
+  return (
+    <motion.div
+      layout
+      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+      animate={
+        reduceMotion
+          ? { opacity: 1, y: 0 }
+          : justCompleted
+            ? {
+                opacity: 1,
+                y: 0,
+                scale: [1, 1.015, 1],
+                boxShadow: [
+                  '0 0 0 2px hsl(var(--primary) / 0)',
+                  '0 0 0 2px hsl(var(--primary) / 0.4)',
+                  '0 0 0 2px hsl(var(--primary) / 0)',
+                ],
+              }
+            : { opacity: 1, y: 0, scale: 1, boxShadow: '0 0 0 2px hsl(var(--primary) / 0)' }
+      }
+      exit={reduceMotion ? undefined : { opacity: 0, y: -6, scale: 0.97 }}
+      whileHover={reduceMotion ? undefined : { y: -2 }}
+      transition={
+        justCompleted && !reduceMotion
+          ? { duration: 0.5, ease: [0.16, 1, 0.3, 1] }
+          : { duration: 0.2, ease: [0.16, 1, 0.3, 1], delay: reduceMotion ? 0 : Math.min(index, 8) * 0.06 }
+      }
+      className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/40"
+    >
+      <div className="flex items-center justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-3">
+            <h3 className="truncate text-lg font-medium text-foreground">
+              {habit.name}
+            </h3>
+            {streak > 0 && (
+              <motion.span
+                animate={
+                  reduceMotion
+                    ? undefined
+                    : celebrate
+                      ? { scale: [1, 1.5, 1.1, 1.3, 1], rotate: [0, -10, 8, -4, 0] }
+                      : { scale: [1, 1.08, 1] }
+                }
+                transition={
+                  celebrate
+                    ? { duration: 0.9, ease: [0.16, 1, 0.3, 1] }
+                    : { duration: 2.6, repeat: Infinity, ease: 'easeInOut' }
+                }
+                className={cn(
+                  'flex items-center gap-1 rounded-full px-1.5 py-0.5 text-sm font-medium tabular-nums text-primary',
+                  celebrate && 'shadow-[0_0_16px_-2px_hsl(var(--primary)/0.6)]'
+                )}
+              >
+                <Flame className="h-4 w-4" strokeWidth={2} />
+                {streak} day{streak !== 1 ? 's' : ''}
+              </motion.span>
+            )}
+            {habit.tags && (
+              <Badge
+                className="flex-shrink-0 border-transparent text-xs text-white"
+                style={{ backgroundColor: habit.tags.color }}
+              >
+                {habit.tags.name}
+              </Badge>
+            )}
+          </div>
+
+          <div className="mb-3 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+            {habit.preferred_time && (
+              <span className="flex items-center gap-1 tabular-nums">
+                <Clock className="h-4 w-4" strokeWidth={2} />
+                {habit.preferred_time}
+              </span>
+            )}
+            <Badge variant="outline" className="text-xs font-normal">
+              {getFrequencyDisplay(habit)}
+            </Badge>
+            {todayLog && (
+              <Badge className={cn('text-xs font-normal', STATUS_BADGE[todayLog.status])}>
+                {todayLog.status}
+              </Badge>
+            )}
+          </div>
+
+          {habit.description && (
+            <p className="mb-3 line-clamp-2 text-sm text-muted-foreground">
+              {habit.description}
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <motion.button
+              whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              onClick={() => onLog(habit.id, 'completed')}
+              disabled={isLogging || todayLog?.status === 'completed'}
+              className={cn(
+                'inline-flex h-8 items-center justify-center gap-1 rounded-md px-3 text-xs font-medium transition-colors disabled:pointer-events-none disabled:opacity-70',
+                todayLog?.status === 'completed'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              )}
+            >
+              <CheckCircle2 className="h-3 w-3" strokeWidth={2} />
+              Done
+            </motion.button>
+
+            <motion.button
+              whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              onClick={() => onLog(habit.id, 'skipped')}
+              disabled={isLogging || todayLog?.status === 'skipped'}
+              className={cn(
+                'inline-flex h-8 items-center justify-center gap-1 rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 disabled:pointer-events-none disabled:opacity-70',
+                todayLog?.status === 'skipped' && 'bg-muted-foreground/20'
+              )}
+            >
+              <PauseCircle className="h-3 w-3" strokeWidth={2} />
+              Skip
+            </motion.button>
+
+            <motion.button
+              whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              onClick={() => onLog(habit.id, 'failed')}
+              disabled={isLogging || todayLog?.status === 'failed'}
+              className={cn(
+                'inline-flex h-8 items-center justify-center gap-1 rounded-md bg-secondary px-3 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 disabled:pointer-events-none disabled:opacity-70',
+                todayLog?.status === 'failed' && 'bg-destructive/15 text-destructive hover:bg-destructive/20'
+              )}
+            >
+              <XCircle className="h-3 w-3" strokeWidth={2} />
+              Miss
+            </motion.button>
+          </div>
+        </div>
+
+        <div className="ml-4 flex items-center gap-1">
+          <motion.button
+            whileTap={reduceMotion ? undefined : { scale: 0.9 }}
+            onClick={() => onEdit(habit)}
+            className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title="Edit habit"
+            aria-label="Edit habit"
+          >
+            <Pencil className="h-4 w-4" strokeWidth={2} />
+          </motion.button>
+          <motion.button
+            whileTap={reduceMotion ? undefined : { scale: 0.9 }}
+            onClick={() => onDelete(habit.id)}
+            disabled={isDeleting}
+            className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            title="Delete habit"
+            aria-label="Delete habit"
+          >
+            <Trash2 className="h-4 w-4" strokeWidth={2} />
+          </motion.button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+const HabitsListSkeleton: React.FC = () => (
+  <div className="space-y-3">
+    {[0, 1, 2].map((i) => (
+      <div key={i} className="rounded-lg border border-border bg-card p-4">
+        <Skeleton className="mb-3 h-5 w-1/3" />
+        <Skeleton className="mb-3 h-3 w-1/2" />
+        <div className="flex gap-2">
+          <Skeleton className="h-7 w-16" />
+          <Skeleton className="h-7 w-16" />
+          <Skeleton className="h-7 w-16" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 const HabitsView: React.FC = () => {
-  const { habits, logs, logHabit, deleteHabit, isLogging, isDeleting } = useHabits();
+  const { habits, logs, logHabit, deleteHabit, isLogging, isDeleting, isLoading } = useHabits();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedHabit, setSelectedHabit] = useState(null);
+  const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; habitId?: string }>({ isOpen: false });
+  const reduceMotion = useReducedMotion();
 
   const handleCreateHabit = () => {
     setSelectedHabit(null);
     setIsModalOpen(true);
   };
 
-  const handleEditHabit = (habit) => {
+  const handleEditHabit = (habit: Habit) => {
     setSelectedHabit(habit);
     setIsModalOpen(true);
   };
@@ -43,20 +301,7 @@ const HabitsView: React.FC = () => {
     return logs.find(log => log.habit_id === habitId && log.date === today);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'skipped':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      case 'failed':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
-    }
-  };
-
-  const getFrequencyDisplay = (habit) => {
+  const getFrequencyDisplay = (habit: Habit) => {
     if (habit.frequency === 'daily') return 'Daily';
     if (habit.frequency === 'weekly') {
       if (habit.frequency_days && habit.frequency_days.length > 0) {
@@ -80,160 +325,68 @@ const HabitsView: React.FC = () => {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
+        <Skeleton className="h-8 w-40" />
+        <HabitsListSkeleton />
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 sm:p-6 max-w-6xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+    <div className="mx-auto max-w-6xl p-4 sm:p-6">
+      <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-black dark:text-white">Habits</h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          {/* TopBar already renders "Habits" as the page h1. */}
+          <p className="text-base font-medium text-foreground">
             Track your daily habits and build consistency
           </p>
         </div>
-        <Button 
-          onClick={handleCreateHabit}
-          className="bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200 w-full sm:w-auto"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          New Habit
+        <Button onClick={handleCreateHabit} className="w-full sm:w-auto">
+          <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
+          New habit
         </Button>
       </div>
 
       {habits.length === 0 ? (
-        <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
-          <CardContent className="text-center py-12">
-            <div className="text-gray-400 dark:text-gray-600 mb-4">
-              <Clock className="h-12 w-12 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                No habits yet
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400">
-                Create your first habit to start building consistency
-              </p>
+        <Card>
+          <CardContent className="flex flex-col items-center py-16 text-center">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Repeat className="h-6 w-6" strokeWidth={2} />
             </div>
-            <Button 
-              onClick={handleCreateHabit}
-              className="bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create First Habit
+            <h3 className="font-grotesk text-base font-medium text-foreground">
+              No habits yet
+            </h3>
+            <p className="mb-6 max-w-sm text-sm text-muted-foreground">
+              Create your first habit to start building consistency, one day at a time.
+            </p>
+            <Button onClick={handleCreateHabit}>
+              <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
+              Create first habit
             </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {sortedHabits.map((habit) => {
-            const todayLog = getTodayLog(habit.id);
-            
-            return (
-              <div key={habit.id} className="p-4 border rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-medium text-black dark:text-white truncate">
-                        {habit.name}
-                      </h3>
-                      {habit.tags && (
-                        <Badge 
-                          className="text-xs flex-shrink-0"
-                          style={{ 
-                            backgroundColor: habit.tags.color,
-                            color: '#ffffff'
-                          }}
-                        >
-                          {habit.tags.name}
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-3">
-                      {habit.preferred_time && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          {habit.preferred_time}
-                        </span>
-                      )}
-                      <Badge variant="outline" className="text-xs">
-                        {getFrequencyDisplay(habit)}
-                      </Badge>
-                      {todayLog && (
-                        <Badge className={`text-xs ${getStatusColor(todayLog.status)}`}>
-                          {todayLog.status}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {habit.description && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
-                        {habit.description}
-                      </p>
-                    )}
-
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleLogHabit(habit.id, 'completed')}
-                        disabled={isLogging || todayLog?.status === 'completed'}
-                        className={`text-xs px-3 py-1 h-7 ${
-                          todayLog?.status === 'completed'
-                            ? 'bg-green-600 text-white'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-green-100 dark:hover:bg-green-900 hover:text-green-700 dark:hover:text-green-300'
-                        }`}
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Done
-                      </Button>
-                      
-                      <Button
-                        size="sm"
-                        onClick={() => handleLogHabit(habit.id, 'skipped')}
-                        disabled={isLogging || todayLog?.status === 'skipped'}
-                        className={`text-xs px-3 py-1 h-7 ${
-                          todayLog?.status === 'skipped'
-                            ? 'bg-yellow-600 text-white'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-yellow-100 dark:hover:bg-yellow-900 hover:text-yellow-700 dark:hover:text-yellow-300'
-                        }`}
-                      >
-                        <Pause className="h-3 w-3 mr-1" />
-                        Skip
-                      </Button>
-                      
-                      <Button
-                        size="sm"
-                        onClick={() => handleLogHabit(habit.id, 'failed')}
-                        disabled={isLogging || todayLog?.status === 'failed'}
-                        className={`text-xs px-3 py-1 h-7 ${
-                          todayLog?.status === 'failed'
-                            ? 'bg-red-600 text-white'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900 hover:text-red-700 dark:hover:text-red-300'
-                        }`}
-                      >
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Miss
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 ml-4">
-                    <button
-                      onClick={() => handleEditHabit(habit)}
-                      className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                      title="Edit habit"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteHabit(habit.id)}
-                      disabled={isDeleting}
-                      className="p-2 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                      title="Delete habit"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          <AnimatePresence initial={false}>
+            {sortedHabits.map((habit, index) => (
+              <HabitRow
+                key={habit.id}
+                habit={habit}
+                index={index}
+                todayLog={getTodayLog(habit.id)}
+                streak={computeStreak(habit.id, logs)}
+                isLogging={isLogging}
+                isDeleting={isDeleting}
+                reduceMotion={!!reduceMotion}
+                getFrequencyDisplay={getFrequencyDisplay}
+                onLog={handleLogHabit}
+                onEdit={handleEditHabit}
+                onDelete={handleDeleteHabit}
+              />
+            ))}
+          </AnimatePresence>
         </div>
       )}
 

@@ -7,7 +7,7 @@ interface UserSettings {
   timeFormat: '12h' | '24h';
   timezone: string;
   theme: 'light' | 'dark';
-  font: 'Inter' | 'Space Grotesk' | 'DM Sans';
+  font: 'Geist' | 'Inter' | 'Space Grotesk' | 'DM Sans';
   notifications: boolean;
   autoBackup: boolean;
 }
@@ -22,8 +22,8 @@ interface SettingsContextType {
 const defaultSettings: UserSettings = {
   timeFormat: '24h',
   timezone: 'UTC-8',
-  theme: 'light',
-  font: 'Inter',
+  theme: 'dark',
+  font: 'Geist',
   notifications: true,
   autoBackup: true,
 };
@@ -103,7 +103,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   const applyFont = (font: string) => {
     const root = document.documentElement;
-    root.style.fontFamily = font === 'Inter' ? 'Inter, system-ui, sans-serif' :
+    root.style.fontFamily = font === 'Geist' ? 'Geist, system-ui, sans-serif' :
+                           font === 'Inter' ? 'Inter, system-ui, sans-serif' :
                            font === 'Space Grotesk' ? 'Space Grotesk, system-ui, sans-serif' :
                            'DM Sans, system-ui, sans-serif';
   };

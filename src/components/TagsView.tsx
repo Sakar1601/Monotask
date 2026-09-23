@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Plus, Trash2, Tag as TagIcon } from 'lucide-react';
 import { useTags } from '@/hooks/useTags';
@@ -12,9 +14,10 @@ import { cn } from '@/lib/utils';
 const grayscaleColors = ['#111827', '#374151', '#6b7280', '#9ca3af', '#d1d5db'];
 
 const TagsView: React.FC = () => {
-  const { tagsWithUsage, createTag, deleteTag, isCreatingTag, isDeletingTag } = useTags();
+  const { tagsWithUsage, createTag, deleteTag, isCreatingTag, isDeletingTag, isLoading } = useTags();
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(grayscaleColors[2]);
+  const reduceMotion = useReducedMotion();
 
   const handleCreateTag = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,43 +32,46 @@ const TagsView: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl p-6">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-black dark:text-white mb-2">Tags</h1>
-        <p className="text-gray-600 dark:text-gray-400">
+        {/* TopBar already renders "Tags" as the page h1. */}
+        <p className="text-base font-medium text-foreground">
           Manage your tags to organize tasks and habits
         </p>
       </div>
 
       {/* Create New Tag */}
-      <Card className="mb-6 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+      <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="text-lg font-semibold text-black dark:text-white flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            Create New Tag
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Plus className="h-5 w-5" strokeWidth={2} />
+            Create new tag
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleCreateTag} className="flex flex-col sm:flex-row gap-3">
+          <form onSubmit={handleCreateTag} className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Input
               placeholder="Enter tag name"
               value={newTagName}
               onChange={(e) => setNewTagName(e.target.value)}
-              className="flex-1 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
+              className="flex-1"
               maxLength={50}
             />
             <div className="flex items-center gap-2" role="radiogroup" aria-label="Tag color">
               {grayscaleColors.map((color) => (
-                <button
+                <motion.button
                   key={color}
                   type="button"
                   role="radio"
                   aria-checked={newTagColor === color}
                   aria-label={`Color ${color}`}
                   onClick={() => setNewTagColor(color)}
+                  whileTap={reduceMotion ? undefined : { scale: 0.9 }}
+                  animate={{ scale: newTagColor === color ? 1.15 : 1 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                   className={cn(
-                    'w-6 h-6 rounded-full border-2 transition-transform',
-                    newTagColor === color ? 'border-black dark:border-white scale-110' : 'border-transparent'
+                    'h-6 w-6 rounded-full border-2',
+                    newTagColor === color ? 'border-primary ring-2 ring-primary/30' : 'border-transparent hover:scale-105'
                   )}
                   style={{ backgroundColor: color }}
                 />
@@ -74,89 +80,102 @@ const TagsView: React.FC = () => {
             <Button
               type="submit"
               disabled={!newTagName.trim() || isCreatingTag}
-              className="bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
             >
-              {isCreatingTag ? 'Creating...' : 'Create Tag'}
+              {isCreatingTag ? 'Creating...' : 'Create tag'}
             </Button>
           </form>
         </CardContent>
       </Card>
 
       {/* Tags List */}
-      <Card className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold text-black dark:text-white flex items-center gap-2">
-            <TagIcon className="h-5 w-5" />
-            Your Tags ({tagsWithUsage.length})
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <TagIcon className="h-5 w-5" strokeWidth={2} />
+            Your tags <span className="tabular-nums">({tagsWithUsage.length})</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {tagsWithUsage.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <TagIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No tags created yet</p>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
+            </div>
+          ) : tagsWithUsage.length === 0 ? (
+            <div className="flex flex-col items-center py-8 text-center text-muted-foreground">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <TagIcon className="h-6 w-6" strokeWidth={2} />
+              </div>
+              <p className="font-medium text-foreground">No tags created yet</p>
               <p className="text-sm">Create your first tag to organize your tasks and habits</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {tagsWithUsage.map((tag) => (
-                <div 
-                  key={tag.id} 
-                  className="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-4 h-4 rounded-full" 
-                      style={{ backgroundColor: tag.color }}
-                    />
-                    <div>
-                      <h3 className="font-medium text-black dark:text-white">{tag.name}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Used in {tag.usage_count || 0} item{(tag.usage_count || 0) !== 1 ? 's' : ''}
-                      </p>
+              <AnimatePresence initial={false}>
+                {tagsWithUsage.map((tag, index) => (
+                  <motion.div
+                    key={tag.id}
+                    layout
+                    initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={reduceMotion ? undefined : { opacity: 0, y: -6, scale: 0.97 }}
+                    whileHover={reduceMotion ? undefined : { y: -2 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1], delay: reduceMotion ? 0 : Math.min(index, 8) * 0.06 }}
+                    className="flex items-center justify-between rounded-lg border border-border p-4 transition-colors hover:bg-accent/40"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="h-4 w-4 rounded-full"
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      <div>
+                        <h3 className="font-medium text-foreground">{tag.name}</h3>
+                        <p className="text-sm tabular-nums text-muted-foreground">
+                          Used in {tag.usage_count || 0} item{(tag.usage_count || 0) !== 1 ? 's' : ''}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={isDeletingTag}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 border-gray-300 dark:border-gray-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="text-black dark:text-white">
-                          Delete Tag
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-gray-600 dark:text-gray-400">
-                          Are you sure you want to delete "{tag.name}"? 
-                          {(tag.usage_count || 0) > 0 && (
-                            <span className="block mt-2 text-amber-600 dark:text-amber-400">
-                              This tag is currently used in {tag.usage_count} item{tag.usage_count !== 1 ? 's' : ''} and will be removed from them.
-                            </span>
-                          )}
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel className="border-gray-300 dark:border-gray-700 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800">
-                          Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDeleteTag(tag.id)}
-                          className="bg-red-600 hover:bg-red-700 text-white"
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isDeletingTag}
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         >
-                          Delete Tag
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              ))}
+                          <Trash2 className="h-4 w-4" strokeWidth={2} />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="font-grotesk">
+                            Delete tag
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete "{tag.name}"?
+                            {(tag.usage_count || 0) > 0 && (
+                              <span className="mt-2 block font-medium text-foreground">
+                                This tag is currently used in {tag.usage_count} item{tag.usage_count !== 1 ? 's' : ''} and will be removed from them.
+                              </span>
+                            )}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>
+                            Cancel
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteTag(tag.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete tag
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
         </CardContent>

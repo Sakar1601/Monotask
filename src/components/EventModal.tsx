@@ -1,10 +1,34 @@
 import React, { useState, useEffect } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useEvents, Event } from '@/hooks/useEvents';
 import TagSelector from './TagSelector';
+
+// Floating-layer glass treatment: backdrop blur + inner border/highlight,
+// with a solid fallback for prefers-reduced-transparency. Applied via
+// inline style (not a className override) so it reliably wins over the
+// shared ui/dialog.tsx primitive's own opaque background class.
+const useReducedTransparency = () => {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-transparency: reduce)');
+    setReduced(mq.matches);
+    const handler = () => setReduced(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return reduced;
+};
+
+const fieldListVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.05, delayChildren: 0.12 } },
+};
+const fieldItemVariants = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
+const reducedFieldItemVariants = { hidden: { opacity: 1 }, show: { opacity: 1 } };
 
 interface EventModalProps {
   isOpen: boolean;
@@ -90,105 +114,121 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
   };
 
   const syncedFromLabel = event?.sync_connection_id ? (event.sync_provider === 'microsoft' ? 'Outlook' : 'Google') : null;
+  const prefersReducedMotion = useReducedMotion();
+  const reducedTransparency = useReducedTransparency();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
+      <DialogContent
+        className="mx-4 max-h-[90vh] max-w-md overflow-y-auto shadow-[inset_0_1px_0_0_hsl(var(--foreground)/0.06)] sm:mx-auto"
+        style={
+          reducedTransparency
+            ? undefined
+            : { backgroundColor: 'hsl(var(--background) / 0.75)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }
+        }
+      >
+        <motion.div
+          initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.92 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+        >
         <DialogHeader>
-          <DialogTitle className="text-black dark:text-white">
+          <DialogTitle>
             {event ? 'Edit Event' : 'Create Event'}
             {syncedFromLabel && (
-              <span className="ml-2 text-xs font-normal text-blue-600 dark:text-blue-400">(from {syncedFromLabel})</span>
+              <span className="ml-2 text-xs font-normal text-primary">(from {syncedFromLabel})</span>
             )}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+        <motion.form
+          onSubmit={handleSubmit}
+          className="space-y-4"
+          variants={fieldListVariants}
+          initial="hidden"
+          animate="show"
+        >
+          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants}>
             <Input
               placeholder="Event title"
               value={formData.title}
               onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
               required
-              className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
             />
-          </div>
+          </motion.div>
 
-          <div>
+          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants}>
             <Textarea
               placeholder="Description (optional)"
               value={formData.description}
               onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
               rows={3}
-              className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white resize-none"
+              className="resize-none"
             />
-          </div>
+          </motion.div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants} className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Start</label>
+              <label className="mb-1 block text-xs text-muted-foreground">Start</label>
               <Input
                 type="datetime-local"
                 value={formData.start_time}
                 onChange={(e) => setFormData((prev) => ({ ...prev, start_time: e.target.value }))}
                 required
-                className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
+                className="tabular-nums"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">End (optional)</label>
+              <label className="mb-1 block text-xs text-muted-foreground">End (optional)</label>
               <Input
                 type="datetime-local"
                 value={formData.end_time}
                 onChange={(e) => setFormData((prev) => ({ ...prev, end_time: e.target.value }))}
-                className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
+                className="tabular-nums"
               />
             </div>
-          </div>
+          </motion.div>
 
-          <div>
+          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants}>
             <Input
               placeholder="Location (optional)"
               value={formData.location}
               onChange={(e) => setFormData((prev) => ({ ...prev, location: e.target.value }))}
-              className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
             />
-          </div>
+          </motion.div>
 
-          <div>
+          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants}>
             <Input
               placeholder="Meeting link (optional)"
               value={formData.meeting_url}
               onChange={(e) => setFormData((prev) => ({ ...prev, meeting_url: e.target.value }))}
-              className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
             />
-          </div>
+          </motion.div>
 
-          <div>
-            <label className="block text-sm font-medium text-black dark:text-white mb-2">Tag</label>
+          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants}>
+            <label className="mb-2 block text-sm font-medium text-foreground">Tag</label>
             <TagSelector
               value={formData.tag_id}
               onChange={(value) => setFormData((prev) => ({ ...prev, tag_id: value }))}
             />
-          </div>
+          </motion.div>
 
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
+          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants} className="flex flex-col-reverse justify-end gap-2 pt-4 sm:flex-row">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="border-gray-300 dark:border-gray-700 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={isCreating || isUpdating}
-              className="bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
             >
               {isCreating || isUpdating ? 'Saving...' : event ? 'Update' : 'Create'}
             </Button>
-          </div>
-        </form>
+          </motion.div>
+        </motion.form>
+        </motion.div>
       </DialogContent>
     </Dialog>
   );

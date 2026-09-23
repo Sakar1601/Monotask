@@ -1,6 +1,8 @@
 
 import { useState, useEffect } from "react";
+import { flushSync } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
@@ -25,6 +27,7 @@ const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentView, setCurrentView] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   // Apply theme on component mount and when settings change
   useEffect(() => {
@@ -58,9 +61,31 @@ const Index = () => {
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams]);
 
+  // This app has no per-view routes (see the switch below) - "navigation"
+  // is a single useState swap, which previously rendered as a flat,
+  // instant cut between screens. Wrapped in the View Transitions API so it
+  // reads as one continuous surface instead of a stack of static pages.
+  // Same-document view transitions degrade automatically where unsupported
+  // (Firefox as of this writing) - `document.startViewTransition` is simply
+  // undefined there, so the branch below falls through to a plain state
+  // set with no error and no missing functionality, just no transition.
+  // `flushSync` is required: startViewTransition needs the DOM mutation to
+  // land synchronously inside its callback, but React 18 batches state
+  // updates by default.
+  const changeView = (view: string) => {
+    if (view === currentView) return;
+    if (typeof document.startViewTransition === 'function' && !prefersReducedMotion) {
+      document.startViewTransition(() => {
+        flushSync(() => setCurrentView(view));
+      });
+    } else {
+      setCurrentView(view);
+    }
+  };
+
   const handleQuickAdd = () => {
     // Quick add functionality - could open a task modal or navigate to tasks
-    setCurrentView('tasks');
+    changeView('tasks');
   };
 
   if (loading) {
@@ -107,7 +132,7 @@ const Index = () => {
     <div className="min-h-screen bg-background flex w-full">
       <Sidebar
         currentView={currentView}
-        onViewChange={setCurrentView}
+        onViewChange={changeView}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         badges={{ suggestions: pendingCount }}

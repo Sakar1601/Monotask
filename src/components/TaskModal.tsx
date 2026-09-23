@@ -1,11 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTasks, Task } from '@/hooks/useTasks';
+import { cn } from '@/lib/utils';
 import TagSelector from './TagSelector';
 import TimeInput from './TimeInput';
 
@@ -29,11 +32,11 @@ interface TaskModalProps {
 
 const formatDateForInput = (dateString?: string) => {
   if (!dateString) return '';
-  
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
     return dateString;
   }
-  
+
   const date = new Date(dateString);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -52,8 +55,16 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
     repeat_type: 'none' as 'none' | 'daily' | 'weekly' | 'monthly',
     repeat_interval: 1,
   });
+  const [titleError, setTitleError] = useState('');
 
   const { createTask, updateTask, isCreating, isUpdating } = useTasks();
+  const reduceMotion = useReducedMotion();
+  const fieldTransition = { duration: 0.3, ease: [0.16, 1, 0.3, 1] as const };
+  const fieldVariants = {
+    hidden: { opacity: 0, y: 8 },
+    visible: (i: number) => ({ opacity: 1, y: 0, transition: { ...fieldTransition, delay: reduceMotion ? 0 : i * 0.05 } }),
+  };
+  const focusGlow = 'transition-shadow duration-200 focus-visible:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]';
 
   useEffect(() => {
     if (task) {
@@ -79,8 +90,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
         repeat_interval: 1,
       });
     } else if (prefilledDate) {
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         due_date: formatDateForInput(prefilledDate),
         title: '',
         description: '',
@@ -102,11 +113,17 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
         repeat_interval: 1,
       });
     }
+    setTitleError('');
   }, [task, prefilledDate, draft, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (!formData.title.trim()) {
+      setTitleError('Give this task a title before saving.');
+      return;
+    }
+
     const taskData = {
       ...formData,
       // The empty-string defaults of these inputs are rejected by Postgres
@@ -126,46 +143,56 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
     } else {
       createTask(taskData);
     }
-    
+
     onClose();
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
+      <DialogContent className="mx-4 max-h-[90vh] max-w-md overflow-y-auto sm:mx-auto">
         <DialogHeader>
-          <DialogTitle className="text-black dark:text-white">
-            {task ? 'Edit Task' : 'Create Task'}
+          <DialogTitle className="font-grotesk">
+            {task ? 'Edit task' : 'Create task'}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          <motion.div custom={0} initial="hidden" animate="visible" variants={fieldVariants}>
+            <Label htmlFor="task-title" className="sr-only">Title</Label>
             <Input
+              id="task-title"
               placeholder="Task title"
               value={formData.title}
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              required
-              className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
+              onChange={(e) => {
+                setFormData(prev => ({ ...prev, title: e.target.value }));
+                if (titleError) setTitleError('');
+              }}
+              aria-invalid={!!titleError}
+              className={cn(focusGlow, titleError && 'border-destructive focus-visible:ring-destructive')}
             />
-          </div>
-          
-          <div>
+            {titleError && <p className="mt-1.5 text-xs text-destructive">{titleError}</p>}
+          </motion.div>
+
+          <motion.div custom={1} initial="hidden" animate="visible" variants={fieldVariants}>
+            <Label htmlFor="task-description" className="sr-only">Description</Label>
             <Textarea
+              id="task-description"
               placeholder="Description (optional)"
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               rows={3}
-              className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white resize-none"
+              className={cn('resize-none', focusGlow)}
             />
-          </div>
-          
-          <div className="grid grid-cols-2 gap-2">
+          </motion.div>
+
+          <motion.div custom={2} initial="hidden" animate="visible" variants={fieldVariants} className="grid grid-cols-2 gap-2">
             <div>
+              <Label htmlFor="task-due-date" className="sr-only">Due date</Label>
               <Input
+                id="task-due-date"
                 type="date"
                 value={formData.due_date}
                 onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white"
+                className={focusGlow}
               />
             </div>
             <div>
@@ -174,59 +201,52 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
                 onChange={(value) => setFormData(prev => ({ ...prev, due_time: value }))}
               />
             </div>
-          </div>
-          
-          <div>
+          </motion.div>
+
+          <motion.div custom={3} initial="hidden" animate="visible" variants={fieldVariants}>
+            <Label className="mb-2 block text-sm font-medium text-foreground">Priority</Label>
             <Select value={formData.priority} onValueChange={(value: 'low' | 'medium' | 'high') => setFormData(prev => ({ ...prev, priority: value }))}>
-              <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white">
+              <SelectTrigger>
                 <SelectValue placeholder="Priority" />
               </SelectTrigger>
-              <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+              <SelectContent>
                 <SelectItem value="low">Low</SelectItem>
                 <SelectItem value="medium">Medium</SelectItem>
                 <SelectItem value="high">High</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-black dark:text-white mb-2">
+          </motion.div>
+
+          <motion.div custom={4} initial="hidden" animate="visible" variants={fieldVariants}>
+            <Label className="mb-2 block text-sm font-medium text-foreground">
               Tag
-            </label>
+            </Label>
             <TagSelector
               value={formData.tag_id}
               onChange={(value) => setFormData(prev => ({ ...prev, tag_id: value }))}
             />
-          </div>
-          
-          <div>
+          </motion.div>
+
+          <motion.div custom={5} initial="hidden" animate="visible" variants={fieldVariants}>
+            <Label className="mb-2 block text-sm font-medium text-foreground">Repeat</Label>
             <Select value={formData.repeat_type} onValueChange={(value: 'none' | 'daily' | 'weekly' | 'monthly') => setFormData(prev => ({ ...prev, repeat_type: value }))}>
-              <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white">
+              <SelectTrigger>
                 <SelectValue placeholder="Repeat" />
               </SelectTrigger>
-              <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+              <SelectContent>
                 <SelectItem value="none">No repeat</SelectItem>
                 <SelectItem value="daily">Daily</SelectItem>
                 <SelectItem value="weekly">Weekly</SelectItem>
                 <SelectItem value="monthly">Monthly</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          
-          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={onClose}
-              className="border-gray-300 dark:border-gray-700 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
+          </motion.div>
+
+          <div className="flex flex-col-reverse justify-end gap-2 pt-4 sm:flex-row">
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-              disabled={isCreating || isUpdating}
-              className="bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200"
-            >
+            <Button type="submit" disabled={isCreating || isUpdating}>
               {isCreating || isUpdating ? 'Saving...' : (task ? 'Update' : 'Create')}
             </Button>
           </div>

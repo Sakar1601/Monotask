@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Plus, Trash2, Calendar as CalendarIcon, MapPin, Link as LinkIcon, Pencil } from 'lucide-react';
 import { useEvents, Event } from '@/hooks/useEvents';
@@ -20,83 +23,104 @@ const EventsView: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const prefersReducedMotion = useReducedMotion();
+
   if (isLoading) {
     return (
-      <div className="p-6 flex items-center justify-center">
-        <div className="text-gray-600 dark:text-gray-400">Loading events...</div>
+      <div className="mx-auto max-w-4xl p-6">
+        <div className="mb-8 flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <Skeleton className="h-10 w-28" />
+        </div>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-lg" />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl p-6">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-black dark:text-white mb-2">Events</h1>
-          <p className="text-gray-600 dark:text-gray-400">Meetings and calendar events, including ones synced from Google</p>
+          {/* TopBar already renders "Events" as the page h1. */}
+          <p className="text-base font-medium text-foreground">Meetings and calendar events, including ones synced from Google</p>
         </div>
-        <Button onClick={handleCreate} className="bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200">
-          <Plus className="h-4 w-4 mr-2" />
+        <Button onClick={handleCreate}>
+          <Plus className="mr-2 h-4 w-4" strokeWidth={1.75} />
           Add Event
         </Button>
       </div>
 
       {events.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg">
-          <CalendarIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+        <div className="rounded-lg border border-border bg-card py-12 text-center text-muted-foreground">
+          <CalendarIcon className="mx-auto mb-4 h-12 w-12 opacity-50" strokeWidth={1.5} />
           <p>No events yet</p>
           <p className="text-sm">Create one, or connect Google Calendar in Settings</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {events.map((event) => (
-            <div
+        <motion.div
+          initial="hidden"
+          animate="show"
+          variants={{ hidden: {}, show: { transition: { staggerChildren: prefersReducedMotion ? 0 : 0.06 } } }}
+          className="space-y-3"
+        >
+          <AnimatePresence initial={false}>
+            {events.map((event) => (
+            <motion.div
               key={event.id}
-              className="flex items-start justify-between p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              layout={!prefersReducedMotion}
+              variants={prefersReducedMotion ? { hidden: { opacity: 1 }, show: { opacity: 1 } } : { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0 } }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -8, transition: { duration: 0.15 } }}
+              whileHover={prefersReducedMotion ? undefined : { y: -2 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="flex items-start justify-between rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50 hover:shadow-[0_16px_36px_-20px_hsl(var(--primary)/0.5)]"
             >
               <button type="button" className="flex-1 text-left" onClick={() => handleEdit(event)}>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-medium text-black dark:text-white">{event.title}</h3>
+                  <h3 className="font-medium text-foreground">{event.title}</h3>
                   {event.sync_connection_id && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200">
+                    <Badge variant="secondary" className="font-normal">
                       {event.sync_provider === 'microsoft' ? 'Outlook' : 'Google'}
-                    </span>
+                    </Badge>
                   )}
                   {event.sync_error && (
-                    <span
-                      className="text-xs px-2 py-0.5 rounded bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200"
-                      title={event.sync_error}
-                    >
+                    <Badge variant="outline" className="border-destructive/30 bg-destructive/10 font-normal text-destructive" title={event.sync_error}>
                       Sync failed
-                    </span>
+                    </Badge>
                   )}
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                <div className="mt-1 text-sm tabular-nums text-muted-foreground">
                   {new Date(event.start_time).toLocaleString()}
                   {event.end_time && ` – ${new Date(event.end_time).toLocaleString()}`}
                 </div>
                 {event.location && (
-                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-                    <MapPin className="h-3 w-3" /> {event.location}
+                  <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                    <MapPin className="h-3 w-3" strokeWidth={1.75} /> {event.location}
                   </div>
                 )}
                 {event.meeting_url && (
-                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
-                    <LinkIcon className="h-3 w-3" /> {event.meeting_url}
+                  <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                    <LinkIcon className="h-3 w-3" strokeWidth={1.75} /> {event.meeting_url}
                   </div>
                 )}
                 {event.tags && (
                   <span
-                    className="inline-block mt-2 px-2 py-1 text-xs rounded text-white"
+                    className="mt-2 inline-block rounded-full px-2 py-1 text-xs font-medium text-white"
                     style={{ backgroundColor: event.tags.color }}
                   >
                     {event.tags.name}
                   </span>
                 )}
               </button>
-              <div className="flex items-center gap-2 ml-4">
+              <div className="ml-4 flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => handleEdit(event)}>
-                  <Pencil className="h-4 w-4" />
+                  <Pencil className="h-4 w-4" strokeWidth={1.75} />
                 </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -104,25 +128,25 @@ const EventsView: React.FC = () => {
                       variant="outline"
                       size="sm"
                       disabled={isDeleting}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 border-gray-300 dark:border-gray-600"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" strokeWidth={1.75} />
                     </Button>
                   </AlertDialogTrigger>
-                  <AlertDialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                  <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle className="text-black dark:text-white">Delete Event</AlertDialogTitle>
-                      <AlertDialogDescription className="text-gray-600 dark:text-gray-400">
+                      <AlertDialogTitle>Delete Event</AlertDialogTitle>
+                      <AlertDialogDescription>
                         Are you sure you want to delete "{event.title}"?
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel className="border-gray-300 dark:border-gray-700 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800">
+                      <AlertDialogCancel>
                         Cancel
                       </AlertDialogCancel>
                       <AlertDialogAction
                         onClick={() => deleteEvent(event.id)}
-                        className="bg-red-600 hover:bg-red-700 text-white"
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
                         Delete Event
                       </AlertDialogAction>
@@ -130,9 +154,10 @@ const EventsView: React.FC = () => {
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
-            </div>
-          ))}
-        </div>
+            </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       )}
 
       <EventModal

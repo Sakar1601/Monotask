@@ -1,21 +1,96 @@
 
 import React from 'react';
-import { Calendar, CheckCircle, Target, TrendingUp } from 'lucide-react';
-import { useTasks } from '@/hooks/useTasks';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { Calendar, CheckCircle2, Target, TrendingUp, AlertTriangle, Sparkles } from 'lucide-react';
+import { useTasks, formatDateLocal } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const priorityBadgeClass = (priority: string) => {
+  switch (priority) {
+    case 'high':
+      return 'border-destructive/30 bg-destructive/10 text-destructive';
+    case 'medium':
+      return 'border-primary/30 bg-primary/10 text-primary';
+    default:
+      return 'border-border bg-muted text-muted-foreground';
+  }
+};
+
+const StatCard: React.FC<{ label: string; value: number | string; icon: React.ReactNode }> = ({ label, value, icon }) => {
+  const prefersReducedMotion = useReducedMotion();
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty('--spot-x', `${e.clientX - rect.left}px`);
+    e.currentTarget.style.setProperty('--spot-y', `${e.clientY - rect.top}px`);
+  };
+
+  return (
+    <motion.div
+      variants={
+        prefersReducedMotion
+          ? { hidden: { opacity: 1 }, show: { opacity: 1 } }
+          : { hidden: { opacity: 0, y: 16, scale: 0.96 }, show: { opacity: 1, y: 0, scale: 1 } }
+      }
+      transition={{ type: 'spring', stiffness: 100, damping: 20 }}
+      whileHover={prefersReducedMotion ? undefined : { y: -4 }}
+      onMouseMove={prefersReducedMotion ? undefined : handleMouseMove}
+      className="group relative h-full"
+    >
+      <Card className="relative h-full overflow-hidden transition-[border-color,box-shadow] duration-300 hover:border-primary/40 hover:shadow-[0_16px_36px_-18px_hsl(var(--primary)/0.55)]">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+          style={{
+            background: 'radial-gradient(220px circle at var(--spot-x, 50%) var(--spot-y, 50%), hsl(var(--primary) / 0.12), transparent 70%)',
+          }}
+        />
+        <CardContent className="relative p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">{label}</p>
+              <p className="mt-1 font-grotesk text-2xl font-bold tabular-nums text-foreground">{value}</p>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+              {icon}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+};
+
+const DashboardSkeleton: React.FC = () => (
+  <div className="space-y-6 p-6">
+    <div className="space-y-2">
+      <Skeleton className="h-8 w-56" />
+      <Skeleton className="h-4 w-72" />
+    </div>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton key={i} className="h-24 rounded-lg" />
+      ))}
+    </div>
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <Skeleton className="h-64 rounded-lg" />
+      <Skeleton className="h-64 rounded-lg" />
+    </div>
+  </div>
+);
 
 const Dashboard: React.FC = () => {
   const { tasks, isLoading: tasksLoading } = useTasks();
   const { habits, isLoading: habitsLoading } = useHabits();
+  const prefersReducedMotion = useReducedMotion();
 
   const isLoading = tasksLoading || habitsLoading;
 
   if (isLoading) {
-    return (
-      <div className="p-6 flex items-center justify-center">
-        <div className="text-gray-600">Loading dashboard...</div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   // Calculate statistics from real data
@@ -29,9 +104,12 @@ const Dashboard: React.FC = () => {
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(task => task.status === 'completed').length;
   const pendingTasks = tasks.filter(task => task.status === 'pending').length;
+  // Date-only comparison, matching useTasks' getOverdueTasks: a task due
+  // today is not overdue just because part of today has already passed.
+  const todayLocal = formatDateLocal(new Date());
   const overdueTasks = tasks.filter(task => {
     if (task.status === 'completed' || !task.due_date) return false;
-    return new Date(task.due_date) < new Date();
+    return task.due_date < todayLocal;
   }).length;
 
   const upcomingTasks = tasks
@@ -45,164 +123,207 @@ const Dashboard: React.FC = () => {
     .slice(0, 3);
 
   const activeHabits = habits.filter(habit => habit.is_active).length;
+  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+  const listVariants = {
+    hidden: {},
+    show: {
+      transition: { staggerChildren: prefersReducedMotion ? 0 : 0.05 },
+    },
+  };
+  const itemVariants = prefersReducedMotion
+    ? { hidden: { opacity: 1 }, show: { opacity: 1 } }
+    : { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
+  const statsGridVariants = {
+    hidden: {},
+    show: { transition: { staggerChildren: prefersReducedMotion ? 0 : 0.07 } },
+  };
+  const sectionTransition = { duration: prefersReducedMotion ? 0 : 0.5, ease: [0.16, 1, 0.3, 1] as const };
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 dark:bg-gray-950 min-h-screen transition-colors">
+    <div className="min-h-screen space-y-6 bg-background p-6 transition-colors">
       {/* Welcome Section */}
-      <div>
-        <h1 className="text-2xl font-bold text-black dark:text-white">Good morning!</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">Here's what's happening with your tasks today.</p>
-      </div>
+      <motion.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={sectionTransition}
+      >
+        <h1 className="font-grotesk text-2xl font-bold text-foreground">Good morning</h1>
+        <p className="mt-1 text-muted-foreground">Here's what's happening with your tasks today.</p>
+      </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-900 p-6 border border-gray-200 dark:border-gray-800 rounded-lg transition-colors">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Completed Today</p>
-              <p className="text-2xl font-bold text-black dark:text-white">{completedTasksToday}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-900 p-6 border border-gray-200 dark:border-gray-800 rounded-lg transition-colors">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Tasks</p>
-              <p className="text-2xl font-bold text-black dark:text-white">{totalTasks}</p>
-            </div>
-            <Target className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-900 p-6 border border-gray-200 dark:border-gray-800 rounded-lg transition-colors">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Pending</p>
-              <p className="text-2xl font-bold text-black dark:text-white">{pendingTasks}</p>
-            </div>
-            <Calendar className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-900 p-6 border border-gray-200 dark:border-gray-800 rounded-lg transition-colors">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Active Habits</p>
-              <p className="text-2xl font-bold text-black dark:text-white">{activeHabits}</p>
-            </div>
-            <TrendingUp className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-          </div>
-        </div>
-      </div>
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={statsGridVariants}
+        className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"
+      >
+        <StatCard label="Completed today" value={completedTasksToday} icon={<CheckCircle2 className="h-5 w-5" strokeWidth={1.75} />} />
+        <StatCard label="Total tasks" value={totalTasks} icon={<Target className="h-5 w-5" strokeWidth={1.75} />} />
+        <StatCard label="Pending" value={pendingTasks} icon={<Calendar className="h-5 w-5" strokeWidth={1.75} />} />
+        <StatCard label="Active habits" value={activeHabits} icon={<TrendingUp className="h-5 w-5" strokeWidth={1.75} />} />
+      </motion.div>
 
       {/* Overdue Tasks Alert */}
       {overdueTasks > 0 && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 transition-colors">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Calendar className="h-5 w-5 text-red-400 dark:text-red-500" />
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800 dark:text-red-300">
-                {overdueTasks} overdue task{overdueTasks !== 1 ? 's' : ''}
-              </h3>
-              <p className="mt-1 text-sm text-red-700 dark:text-red-400">
-                You have tasks that are past their due date.
-              </p>
-            </div>
+        <motion.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: -8, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 transition-colors"
+        >
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" strokeWidth={1.75} />
+          <div>
+            <h3 className="text-sm font-medium text-destructive">
+              {overdueTasks} overdue task{overdueTasks !== 1 ? 's' : ''}
+            </h3>
+            <p className="mt-1 text-sm text-destructive/80">
+              You have tasks that are past their due date.
+            </p>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Upcoming Tasks */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-black mb-4">Upcoming Tasks</h2>
-          {upcomingTasks.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No upcoming tasks</p>
-          ) : (
-            <div className="space-y-3">
-              {upcomingTasks.map((task) => (
-                <div key={task.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-black">{task.title}</h3>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <span className="text-sm text-gray-600">
-                        {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No date'}
-                      </span>
-                      {task.due_time && (
-                        <span className="text-sm text-gray-600">at {task.due_time}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 text-xs rounded ${
-                      task.priority === 'high' ? 'bg-gray-200' :
-                      task.priority === 'medium' ? 'bg-gray-100' : 'bg-gray-50'
-                    }`}>
-                      {task.priority}
-                    </span>
-                    {task.tags && (
-                      <span 
-                        className="px-2 py-1 text-xs rounded text-white"
-                        style={{ backgroundColor: task.tags.color }}
-                      >
-                        {task.tags.name}
-                      </span>
-                    )}
-                  </div>
+        <motion.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 100, damping: 20, delay: prefersReducedMotion ? 0 : 0.1 }}
+        >
+          <Card className="transition-shadow duration-300 hover:shadow-[0_18px_40px_-22px_hsl(var(--primary)/0.5)]">
+            <CardContent className="p-6">
+              <h2 className="font-grotesk text-lg font-semibold text-foreground">Upcoming tasks</h2>
+              {upcomingTasks.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-8 text-center">
+                  <Sparkles className="h-6 w-6 text-muted-foreground" strokeWidth={1.75} />
+                  <p className="text-sm text-muted-foreground">Nothing upcoming. You're all caught up.</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              ) : (
+                <motion.div
+                  variants={listVariants}
+                  initial="hidden"
+                  animate="show"
+                  className="mt-4 space-y-2"
+                >
+                  <AnimatePresence initial={false}>
+                    {upcomingTasks.map((task) => (
+                      <motion.div
+                        key={task.id}
+                        layout={!prefersReducedMotion}
+                        variants={itemVariants}
+                        exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -8, transition: { duration: 0.15 } }}
+                        whileHover={prefersReducedMotion ? undefined : { y: -1 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                        style={task.due_date ? { viewTransitionName: `task-row-${task.id}-${task.due_date}` } : undefined}
+                        className="flex items-center justify-between gap-3 rounded-md bg-muted/60 p-3 transition-colors hover:bg-muted"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate font-medium text-foreground">{task.title}</h3>
+                          <div className="mt-1 flex items-center gap-2 text-sm tabular-nums text-muted-foreground">
+                            <span>{task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No date'}</span>
+                            {task.due_time && <span>at {task.due_time}</span>}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Badge variant="outline" className={`capitalize ${priorityBadgeClass(task.priority)}`}>
+                            {task.priority}
+                          </Badge>
+                          {task.tags && (
+                            <span
+                              className="rounded-full px-2 py-1 text-xs font-medium text-white"
+                              style={{ backgroundColor: task.tags.color }}
+                            >
+                              {task.tags.name}
+                            </span>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Recently Completed */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-black mb-4">Recently Completed</h2>
-          {recentlyCompleted.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No completed tasks yet</p>
-          ) : (
-            <div className="space-y-3">
-              {recentlyCompleted.map((task) => (
-                <div key={task.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-black line-through">{task.title}</h3>
-                    <span className="text-sm text-gray-600">
-                      Completed {task.completed_at ? new Date(task.completed_at).toLocaleDateString() : ''}
-                    </span>
-                  </div>
-                  <CheckCircle className="w-5 h-5 text-green-500" />
+        <motion.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 100, damping: 20, delay: prefersReducedMotion ? 0 : 0.16 }}
+        >
+          <Card className="transition-shadow duration-300 hover:shadow-[0_18px_40px_-22px_hsl(var(--primary)/0.5)]">
+            <CardContent className="p-6">
+              <h2 className="font-grotesk text-lg font-semibold text-foreground">Recently completed</h2>
+              {recentlyCompleted.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-8 text-center">
+                  <CheckCircle2 className="h-6 w-6 text-muted-foreground" strokeWidth={1.75} />
+                  <p className="text-sm text-muted-foreground">No completed tasks yet.</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              ) : (
+                <motion.div
+                  variants={listVariants}
+                  initial="hidden"
+                  animate="show"
+                  className="mt-4 space-y-2"
+                >
+                  <AnimatePresence initial={false}>
+                    {recentlyCompleted.map((task) => (
+                      <motion.div
+                        key={task.id}
+                        layout={!prefersReducedMotion}
+                        variants={itemVariants}
+                        exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -8, transition: { duration: 0.15 } }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                        style={task.due_date ? { viewTransitionName: `task-row-${task.id}-${task.due_date}` } : undefined}
+                        className="flex items-center justify-between gap-3 rounded-md bg-muted/60 p-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate font-medium text-foreground line-through opacity-70">{task.title}</h3>
+                          <span className="text-sm tabular-nums text-muted-foreground">
+                            Completed {task.completed_at ? new Date(task.completed_at).toLocaleDateString() : ''}
+                          </span>
+                        </div>
+                        <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" strokeWidth={1.75} />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Quick Stats */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 transition-colors">
-        <h2 className="text-lg font-semibold text-black dark:text-white mb-4">Quick Overview</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-black dark:text-white">{completedTasks}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Completed</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-black dark:text-white">{pendingTasks}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Pending</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-black dark:text-white">
-              {totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0}%
+      <motion.div
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 100, damping: 20, delay: prefersReducedMotion ? 0 : 0.22 }}
+      >
+      <Card className="transition-shadow duration-300 hover:shadow-[0_18px_40px_-22px_hsl(var(--primary)/0.5)]">
+        <CardContent className="p-6">
+          <h2 className="font-grotesk text-lg font-semibold text-foreground">Quick overview</h2>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="text-center">
+              <div className="font-grotesk text-2xl font-bold tabular-nums text-foreground">{completedTasks}</div>
+              <div className="text-sm text-muted-foreground">Completed</div>
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Completion Rate</div>
+            <div className="text-center">
+              <div className="font-grotesk text-2xl font-bold tabular-nums text-foreground">{pendingTasks}</div>
+              <div className="text-sm text-muted-foreground">Pending</div>
+            </div>
+            <div className="text-center">
+              <div className="font-grotesk text-2xl font-bold tabular-nums text-primary">{completionRate}%</div>
+              <div className="text-sm text-muted-foreground">Completion rate</div>
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
+      </motion.div>
     </div>
   );
 };

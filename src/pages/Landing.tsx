@@ -1,34 +1,45 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  CheckSquare, 
-  Repeat, 
-  Calendar, 
-  BarChart3, 
-  Download, 
-  Moon,
+import { motion, useReducedMotion, useScroll, useMotionValueEvent, useTransform } from 'framer-motion';
+import {
+  CheckSquare,
   ArrowRight,
-  ArrowDown,
-  Sparkles,
-  FileText,
-  Upload,
-  Flame,
-  Play,
   Check,
-  Clock,
   Target,
-  Zap
+  LineChart,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { MagneticButton } from '@/components/landing/MagneticButton';
+import { GrainOverlay } from '@/components/landing/GrainOverlay';
+import { StepsStack } from '@/components/landing/StepsStack';
+import { ThemeToggle } from '@/components/landing/ThemeToggle';
+import { AIShowcase } from '@/components/landing/AIShowcase';
+import { SyncDiagram } from '@/components/landing/SyncDiagram';
+import { RecurringDemo } from '@/components/landing/RecurringDemo';
+import { AnalyticsPreview } from '@/components/landing/AnalyticsPreview';
+import { HeroDemo } from '@/components/landing/HeroDemo';
+import { TiltCard } from '@/components/landing/TiltCard';
+import { AddStepDemo, CheckOffStepDemo, PatternStepDemo } from '@/components/landing/StepDemos';
+import { FeatureDetailGrid } from '@/components/landing/FeatureDetailGrid';
 
+/**
+ * Design read: a productivity landing page for people drowning in
+ * five different apps, in a pure monochrome, typography-and-motion-driven
+ * language, leaning on the existing cinematic infrastructure (3D hero,
+ * GSAP sticky-stack, magnetic buttons, tilt cards, grain) recolored to
+ * grayscale. "Monotask" is about doing one thing at a time; removing the
+ * accent color is not a downgrade, it is the same idea applied to the page
+ * itself. Dials for this pass: DESIGN_VARIANCE 9, MOTION_INTENSITY 9,
+ * VISUAL_DENSITY 4.
+ */
 const Landing = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
-  const [activeDemo, setActiveDemo] = useState<'tasks' | 'habits' | 'calendar' | 'heatmap'>('tasks');
   const featuresRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = useReducedMotion();
+  const { scrollY } = useScroll();
 
   useEffect(() => {
     if (!loading && user) {
@@ -36,965 +47,435 @@ const Landing = () => {
     }
   }, [user, loading, navigate]);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  useMotionValueEvent(scrollY, 'change', (latest) => {
+    setScrolled(latest > 20);
+  });
+
+  // Logo shrinks a touch as the nav picks up its scrolled background, a
+  // small piece of continuous feedback that the page is tracking scroll
+  // position rather than the nav just snapping between two fixed states.
+  const logoScale = useTransform(scrollY, [0, 160], [1, 0.9]);
 
   const scrollToFeatures = () => {
     featuresRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const goToSignup = () => navigate('/auth?mode=signup');
+  const goToSignin = () => navigate('/auth');
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
+      <div className="min-h-[100dvh] bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground" />
       </div>
     );
   }
 
-  const features = [
-    {
-      icon: CheckSquare,
-      title: 'Task Manager',
-      description: 'Create and manage tasks with due dates, priorities, and categories.',
-      color: 'from-foreground/10 to-foreground/5'
-    },
-    {
-      icon: Sparkles,
-      title: 'AI Quick Add',
-      description: 'Type a task in plain English - "lunch with Sam tomorrow 1pm" - and AI fills in the rest.',
-      color: 'from-foreground/10 to-foreground/5'
-    },
-    {
-      icon: Zap,
-      title: 'AI Weekly Summary',
-      description: 'Get a short AI-generated recap of your week\'s tasks and habits, on demand.',
-      color: 'from-foreground/10 to-foreground/5'
-    },
-    {
-      icon: Repeat,
-      title: 'Habit Tracker',
-      description: 'Build consistent routines and view your habit streaks over time.',
-      color: 'from-foreground/10 to-foreground/5'
-    },
-    {
-      icon: Calendar,
-      title: 'Calendar View',
-      description: 'Plan visually with intuitive calendar week and month views.',
-      color: 'from-foreground/10 to-foreground/5'
-    },
-    {
-      icon: Flame,
-      title: 'Weekly Heatmap',
-      description: 'Track productivity patterns with beautiful visual graphs.',
-      color: 'from-foreground/10 to-foreground/5'
-    },
-    {
-      icon: Repeat,
-      title: 'Recurring Tasks',
-      description: 'Auto-create repeating tasks on daily, weekly, or custom schedules.',
-      color: 'from-foreground/10 to-foreground/5'
-    },
-    {
-      icon: FileText,
-      title: 'Export as PDF',
-      description: 'Print or export your task list and productivity summary.',
-      color: 'from-foreground/10 to-foreground/5'
-    },
-    {
-      icon: Upload,
-      title: 'Import/Export',
-      description: 'Seamlessly transfer your task data between devices.',
-      color: 'from-foreground/10 to-foreground/5'
-    },
-    {
-      icon: Moon,
-      title: 'Dark Mode',
-      description: 'Switch themes easily with beautiful dark and light modes.',
-      color: 'from-foreground/10 to-foreground/5'
-    }
-  ];
+  const fadeUp = prefersReducedMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 20 },
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, margin: '-80px' },
+        transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as const },
+      };
 
-  const steps = [
+  // A second entrance flavor for sections that read better as a settle-in
+  // than a slide-up (the sync diagram is a centered object, not a list),
+  // so the scroll rhythm varies rather than repeating the same fadeUp for
+  // every single section on the page.
+  const fadeScale = prefersReducedMotion
+    ? {}
+    : {
+        initial: { opacity: 0, scale: 0.94 },
+        whileInView: { opacity: 1, scale: 1 },
+        viewport: { once: true, margin: '-80px' },
+        transition: { type: 'spring', stiffness: 100, damping: 20 } as const,
+      };
+
+  // A clip-reveal for the one section that breaks the page's layout pattern
+  // (tabs over a card grid, deliberately denser than everywhere else) - the
+  // heading unveils like a blind lifting rather than fading, marking the
+  // section as a distinct moment before the tab content itself takes over.
+  const clipReveal = prefersReducedMotion
+    ? {}
+    : {
+        initial: { clipPath: 'inset(0 0 100% 0)', opacity: 0 },
+        whileInView: { clipPath: 'inset(0 0 0% 0)', opacity: 1 },
+        viewport: { once: true, margin: '-80px' },
+        transition: { duration: 0.65, ease: [0.16, 1, 0.3, 1] as const },
+      };
+
+  const timelineSteps = [
     {
       icon: Target,
-      title: 'Create Tasks & Habits',
-      description: 'Add your daily tasks and habits with just a few clicks.',
-      visual: 'form'
+      title: 'Add tasks and habits',
+      description: 'Type it in plain English or fill a short form. Both take a few seconds.',
+      Demo: AddStepDemo,
     },
     {
       icon: Check,
-      title: 'Track Your Day',
-      description: 'Check off completed tasks and build your habit streaks.',
-      visual: 'check'
+      title: 'Check things off',
+      description: 'Mark tasks done and keep your habit streaks alive, one day at a time.',
+      Demo: CheckOffStepDemo,
     },
     {
-      icon: BarChart3,
-      title: 'Review Progress',
-      description: 'Visualize your productivity with calendars and heatmaps.',
-      visual: 'chart'
-    }
+      icon: LineChart,
+      title: 'See the pattern',
+      description: 'A calendar view and a twelve-week heatmap show you where the time actually went.',
+      Demo: PatternStepDemo,
+    },
   ];
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.08,
-        delayChildren: 0.1
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.6,
-        ease: [0.25, 0.46, 0.45, 0.94] as const
-      }
-    }
-  };
-
-  const slideUp = {
-    hidden: { opacity: 0, y: 60 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] as const }
-    }
-  };
-
-  const fadeIn = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1,
-      transition: { duration: 0.8, delay: 0.3 }
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* Floating Shapes Background */}
+    <div className="min-h-[100dvh] bg-background overflow-x-hidden">
+      <GrainOverlay />
+      {/* Ambient background, fixed and non-interactive so it never taxes scroll compositing */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
         <motion.div
-          animate={{ 
-            y: [0, -20, 0],
-            rotate: [0, 5, 0]
-          }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-20 left-[10%] w-64 h-64 bg-foreground/[0.02] rounded-full blur-3xl"
+          animate={prefersReducedMotion ? undefined : { y: [0, -24, 0] }}
+          transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute top-24 right-[8%] w-80 h-80 bg-foreground/[0.05] rounded-full blur-3xl"
         />
         <motion.div
-          animate={{ 
-            y: [0, 30, 0],
-            rotate: [0, -5, 0]
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-          className="absolute top-40 right-[15%] w-80 h-80 bg-foreground/[0.03] rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{ 
-            y: [0, -15, 0],
-            x: [0, 10, 0]
-          }}
-          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-          className="absolute bottom-40 left-[20%] w-72 h-72 bg-foreground/[0.02] rounded-full blur-3xl"
+          animate={prefersReducedMotion ? undefined : { y: [0, 20, 0] }}
+          transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+          className="absolute bottom-20 left-[6%] w-72 h-72 bg-foreground/[0.03] rounded-full blur-3xl"
         />
       </div>
 
-      {/* Grid Pattern Overlay */}
-      <div className="fixed inset-0 -z-10 pointer-events-none opacity-[0.015]">
-        <svg width="100%" height="100%">
-          <defs>
-            <pattern id="grid-pattern" width="60" height="60" patternUnits="userSpaceOnUse">
-              <path d="M 60 0 L 0 0 0 60" fill="none" stroke="currentColor" strokeWidth="1"/>
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid-pattern)" />
-        </svg>
-      </div>
-
-      {/* Sticky Navigation */}
-      <motion.nav 
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.6 }}
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-          scrolled 
-            ? 'bg-background/80 backdrop-blur-xl border-b border-border shadow-lg shadow-foreground/5' 
+      {/* Navigation */}
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${
+          scrolled
+            ? 'bg-background/85 backdrop-blur-xl border-b border-border'
             : 'bg-transparent border-b border-transparent'
         }`}
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="flex items-center gap-2"
+            <motion.div
+              style={prefersReducedMotion ? undefined : { scale: logoScale }}
+              className="flex items-center gap-2 origin-left"
             >
-              <div className="w-9 h-9 bg-foreground rounded-xl flex items-center justify-center shadow-lg">
-                <CheckSquare className="w-5 h-5 text-background" />
+              <div className="w-8 h-8 bg-foreground rounded-lg flex items-center justify-center">
+                <CheckSquare className="w-[18px] h-[18px] text-background" />
               </div>
-              <span className="text-xl font-bold text-foreground tracking-tight">Monotask</span>
+              <span className="text-lg font-bold text-foreground tracking-tight font-grotesk">
+                Monotask
+              </span>
             </motion.div>
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="flex items-center gap-2 sm:gap-3"
-            >
-              <Button 
-                variant="ghost" 
-                onClick={() => navigate('/auth')}
-                className="text-muted-foreground hover:text-foreground hover:bg-foreground/5"
-              >
+            <div className="flex items-center gap-2 sm:gap-3">
+              <ThemeToggle />
+              <Button variant="ghost" onClick={goToSignin} className="text-muted-foreground hover:text-foreground">
                 Sign In
               </Button>
-              <Button 
-                onClick={() => navigate('/auth?mode=signup')}
-                className="bg-foreground text-background hover:bg-foreground/90 group shadow-lg shadow-foreground/20"
-              >
+              <MagneticButton onClick={goToSignup} className="group" strength={0.25}>
                 <span className="hidden sm:inline">Get Started</span>
                 <span className="sm:hidden">Start</span>
-                <ArrowRight className="ml-1 w-4 h-4 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+              </MagneticButton>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero: asymmetric split. The right side used to carry an abstract 3D
+          geometry cluster behind the preview card - shapes disconnected from
+          anything the product does, which read as clutter rather than
+          craft. Replaced with a quiet ambient glow (the ambient ramp already
+          used elsewhere on the page) and a looping animated demo of the
+          product actually working, per direct feedback: motion here should
+          demonstrate the UI, not decorate around it. */}
+      <section className="relative min-h-[100dvh] flex items-center pt-20 pb-16 px-4 sm:px-6 lg:px-8">
+        <div className="absolute inset-0 z-0 pointer-events-none opacity-80" aria-hidden>
+          <div className="absolute right-[6%] top-1/2 -translate-y-1/2 w-[26rem] h-[26rem] bg-gradient-to-br from-foreground/[0.08] via-foreground/[0.02] to-transparent rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative z-10 max-w-6xl mx-auto grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-8 items-center w-full">
+          <div className="text-center lg:text-left">
+            <motion.h1
+              initial={prefersReducedMotion ? undefined : { opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground tracking-tight leading-[1.05] font-grotesk mb-5"
+            >
+              One task at a time.
+              <br />
+              Everything else stays quiet.
+            </motion.h1>
+
+            <motion.p
+              initial={prefersReducedMotion ? undefined : { opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.15 }}
+              className="text-lg text-muted-foreground max-w-md mx-auto lg:mx-0 mb-8"
+            >
+              Tasks, habits, and your calendar in one place, with AI filling in the details
+              you would rather skip.
+            </motion.p>
+
+            <motion.div
+              initial={prefersReducedMotion ? undefined : { opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.25 }}
+              className="flex flex-col sm:flex-row items-center lg:items-start justify-center lg:justify-start gap-3"
+            >
+              <MagneticButton size="lg" onClick={goToSignup} className="px-7 group w-full sm:w-auto">
+                Get Started
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+              </MagneticButton>
+              <Button size="lg" variant="outline" onClick={scrollToFeatures} className="px-7 w-full sm:w-auto">
+                Features
               </Button>
             </motion.div>
           </div>
-        </div>
-      </motion.nav>
 
-      {/* Hero Section */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center pt-16 pb-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto text-center">
+          {/* Looping product demo, built from the actual UI primitives -
+              see HeroDemo for the sequencing. Still gets the tilt/spotlight
+              treatment so it doesn't feel static relative to the rest of
+              the page's motion language. */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground/5 border border-border mb-8"
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="w-full max-w-sm mx-auto lg:max-w-none"
           >
-            <Sparkles className="w-4 h-4 text-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">Simple. Focused. Effective.</span>
+            <TiltCard className="rounded-2xl">
+              <HeroDemo />
+            </TiltCard>
           </motion.div>
-          
-          <motion.h1 
-            variants={slideUp}
-            initial="hidden"
-            animate="visible"
-            className="text-5xl sm:text-6xl lg:text-7xl font-bold text-foreground tracking-tight mb-4"
-          >
-            Stay focused.
-          </motion.h1>
-          
-          <motion.p 
-            variants={fadeIn}
-            initial="hidden"
-            animate="visible"
-            className="text-3xl sm:text-4xl lg:text-5xl font-bold text-muted-foreground tracking-tight mb-6"
-          >
-            Track tasks. Build habits.
-          </motion.p>
-          
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10"
-          >
-            A minimal productivity app designed to help you focus on what matters most. 
-            Simple, distraction-free, and beautifully crafted.
-          </motion.p>
-          
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
-          >
-            <Button
-              size="lg"
-              onClick={scrollToFeatures}
-              className="bg-foreground text-background hover:bg-foreground/90 px-8 py-6 text-lg group shadow-xl shadow-foreground/20"
-            >
-              Start for Free
-              <ArrowRight className="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" />
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => navigate('/auth')}
-              className="px-8 py-6 text-lg border-border hover:bg-accent"
-            >
-              Sign In
-            </Button>
+        </div>
+      </section>
+
+      {/* AI: quick add + suggestions, the strongest differentiator, gets a
+          full-width spotlight with two real interactive recreations rather
+          than a bento cell each. */}
+      <section ref={featuresRef} className="py-24 px-4 sm:px-6 lg:px-8 border-t border-border">
+        <div className="max-w-5xl mx-auto">
+          <motion.div {...fadeUp} className="max-w-2xl mb-12">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-3">
+              Built-in AI
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground font-grotesk mb-3">
+              Less typing. Less digging through your inbox.
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Type a task in plain English and AI fills in the fields. Connect your inbox
+              and it finds tasks already hiding in your messages.
+            </p>
           </motion.div>
 
-          <motion.button
-            onClick={scrollToFeatures}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.75 }}
-            className="mt-8 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground/5 border border-border hover:border-foreground/20 hover:bg-foreground/10 transition-colors group"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-foreground" />
-            <span className="text-sm text-muted-foreground">
-              New: <span className="text-foreground font-medium">AI Quick Add</span> &amp; <span className="text-foreground font-medium">AI Weekly Summary</span>
-            </span>
-            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-          </motion.button>
+          <motion.div {...fadeUp}>
+            <AIShowcase />
+          </motion.div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Every AI draft lands in the form for you to review. Nothing saves itself.
+          </p>
+        </div>
+      </section>
+
+      {/* Two-way calendar sync: centered diagram, not a split, breaking the
+          pattern before it can repeat. */}
+      <section className="py-24 px-4 sm:px-6 lg:px-8 bg-secondary/40 border-y border-border">
+        <div className="max-w-4xl mx-auto text-center">
+          <motion.div {...fadeScale} className="max-w-xl mx-auto mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground font-grotesk mb-3">
+              Synced both ways, automatically.
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Google Calendar and Microsoft Outlook stay in step with Monotask in real time,
+              so an edit on either side shows up everywhere else.
+            </p>
+          </motion.div>
+          <motion.div {...fadeUp}>
+            <SyncDiagram />
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Recurring tasks: the one genuine text/image split on the page. */}
+      <section className="py-24 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          <motion.div {...fadeUp}>
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground font-grotesk mb-3">
+              Recurring tasks that respect each day.
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Daily, weekly, or monthly, each occurrence is tracked on its own. Checking off
+              today never checks off the rest of the series.
+            </p>
+          </motion.div>
+          <motion.div {...fadeUp}>
+            <RecurringDemo />
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Analytics: dashboard-echo layout, reusing ProgressView's own chart
+          and heatmap visual language so the landing page and the real
+          product agree with each other. */}
+      <section className="py-24 px-4 sm:px-6 lg:px-8 border-t border-border">
+        <div className="max-w-5xl mx-auto">
+          <motion.div {...fadeUp} className="max-w-2xl mb-12">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-3">
+              Progress and analytics
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground font-grotesk mb-3">
+              See the pattern, not just the list.
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              A weekly chart and a twelve-week heatmap show where your time actually went,
+              plus an on-demand AI summary that never invents the numbers.
+            </p>
+          </motion.div>
+          <motion.div {...fadeUp}>
+            <AnalyticsPreview />
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Every detail, covered: the full breadth of the app, from due dates
+          and priorities down to import error messages, grouped into tabs
+          rather than dumped as a flat bullet list. Direct, deliberate
+          departure from the "cut ruthlessly" default for this one section,
+          because comprehensive coverage is the explicit goal here, and this
+          is the page everyone actually reads. A distinct layout family
+          (tabs over a card grid) from every section around it. */}
+      <section className="py-24 px-4 sm:px-6 lg:px-8 bg-secondary/40 border-y border-border">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center max-w-xl mx-auto mb-12">
+            <motion.h2 {...clipReveal} className="text-3xl sm:text-4xl font-bold text-foreground font-grotesk mb-3">
+              Every detail, covered.
+            </motion.h2>
+            <motion.p {...fadeUp} className="text-lg text-muted-foreground">
+              Past the headline features, there is a lot of small, deliberate work in here too.
+            </motion.p>
+          </div>
+
+          <motion.div {...fadeUp}>
+            <FeatureDetailGrid />
+          </motion.div>
+        </div>
+      </section>
+
+      {/* How it works: GSAP sticky-stack, each step pins and shrinks away as
+          the next one arrives. Each pinned card used to hold only an icon,
+          a one-line heading, and a sentence, centered in an otherwise empty
+          full-viewport slide - a void, not an impression. Every step now
+          also carries a small real recreation of the thing it describes
+          (see StepDemos), the same "built from actual app styling" pattern
+          used by AIShowcase / RecurringDemo / SyncDiagram elsewhere, so the
+          pinned time is spent looking at something. Collapses to plain
+          vertical scroll below md (see StepsStack). */}
+      <section className="bg-secondary/40 border-b border-border">
+        <div className="pt-24 px-4 sm:px-6 lg:px-8">
+          <motion.div {...fadeUp} className="max-w-3xl mx-auto text-center mb-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground font-grotesk">
+              Three steps, no onboarding tour
+            </h2>
+          </motion.div>
         </div>
 
-        {/* Scroll Indicator */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1 }}
-          className="absolute bottom-10 left-1/2 -translate-x-1/2"
+        <StepsStack
+          items={timelineSteps.map((step, index) => {
+            const Icon = step.icon;
+            const Demo = step.Demo;
+            const accent = index === 1;
+            return {
+              key: step.title,
+              content: (
+                <div className="mx-auto w-full max-w-4xl px-4 sm:px-6 lg:px-8">
+                  <div className="text-center">
+                    <div
+                      className={`mx-auto mb-5 w-14 h-14 rounded-2xl flex items-center justify-center ${
+                        accent ? 'bg-foreground text-background' : 'bg-background border-2 border-foreground'
+                      }`}
+                    >
+                      <Icon className={`w-6 h-6 ${accent ? '' : 'text-foreground'}`} />
+                    </div>
+                    <h3 className="text-2xl sm:text-3xl font-bold text-foreground font-grotesk mb-3">
+                      {step.title}
+                    </h3>
+                    <p className="text-lg text-muted-foreground max-w-md mx-auto mb-9">{step.description}</p>
+                  </div>
+                  <TiltCard className="rounded-2xl">
+                    <Demo />
+                  </TiltCard>
+                </div>
+              ),
+            };
+          })}
+        />
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-24 px-4 sm:px-6 lg:px-8">
+        <motion.div
+          {...fadeUp}
+          className="max-w-4xl mx-auto text-center rounded-3xl bg-foreground px-8 py-16 sm:py-20 relative overflow-hidden"
         >
-          <motion.button
-            onClick={scrollToFeatures}
-            animate={{ y: [0, 8, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="flex flex-col items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span className="text-sm font-medium">Scroll to explore</span>
-            <ArrowDown className="w-5 h-5" />
-          </motion.button>
+          <div className="absolute inset-0 opacity-[0.08] pointer-events-none">
+            <motion.div
+              animate={prefersReducedMotion ? undefined : { scale: [1, 1.15, 1], opacity: [1, 0.7, 1] }}
+              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute -top-10 -left-10 w-72 h-72 bg-background rounded-full blur-3xl"
+            />
+          </div>
+          <div className="relative z-10">
+            <h2 className="text-3xl sm:text-4xl font-bold text-background font-grotesk mb-4">
+              Ready to focus on one thing?
+            </h2>
+            <p className="text-lg text-background/70 mb-9 max-w-md mx-auto">
+              Free for personal use. No credit card, no trial clock.
+            </p>
+            <MagneticButton
+              size="lg"
+              onClick={goToSignup}
+              className="bg-background text-foreground hover:bg-background/90 px-9 group"
+            >
+              Get Started
+              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+            </MagneticButton>
+          </div>
         </motion.div>
       </section>
 
-      {/* Product Demo Preview Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-background via-accent/30 to-background">
-        <div className="max-w-6xl mx-auto">
-          <motion.div 
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              See it in action
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Experience how Monotask helps you stay organized and productive
-            </p>
-          </motion.div>
-
-          {/* Demo Tabs */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="flex flex-wrap justify-center gap-2 mb-8"
-          >
-            {[
-              { id: 'tasks', label: 'Task Manager', icon: CheckSquare },
-              { id: 'habits', label: 'Habit Tracker', icon: Repeat },
-              { id: 'calendar', label: 'Calendar View', icon: Calendar },
-              { id: 'heatmap', label: 'Heatmap', icon: BarChart3 }
-            ].map((tab) => (
-              <motion.button
-                key={tab.id}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setActiveDemo(tab.id as typeof activeDemo)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${
-                  activeDemo === tab.id 
-                    ? 'bg-foreground text-background shadow-lg' 
-                    : 'bg-card border border-border text-muted-foreground hover:text-foreground hover:border-foreground/20'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </motion.button>
-            ))}
-          </motion.div>
-
-          {/* Demo Window */}
-          <motion.div 
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="rounded-2xl border border-border bg-card shadow-2xl overflow-hidden"
-          >
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/50">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-foreground/20"></div>
-                <div className="w-3 h-3 rounded-full bg-foreground/15"></div>
-                <div className="w-3 h-3 rounded-full bg-foreground/10"></div>
-              </div>
-              <span className="ml-4 text-xs text-muted-foreground font-medium">Monotask Dashboard</span>
-            </div>
-            
-            <div className="p-6 sm:p-10 min-h-[400px] bg-gradient-to-br from-card via-card to-accent/10">
-              <AnimatePresence mode="wait">
-                {activeDemo === 'tasks' && (
-                  <motion.div
-                    key="tasks"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-4"
-                  >
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-xl font-semibold text-foreground">Today's Tasks</h3>
-                      <motion.button 
-                        whileHover={{ scale: 1.05 }}
-                        className="px-4 py-2 bg-foreground text-background rounded-lg text-sm font-medium"
-                      >
-                        + Add Task
-                      </motion.button>
-                    </div>
-                    {[
-                      { text: 'Complete project proposal', done: false, priority: 'high' },
-                      { text: 'Morning exercise routine', done: true, priority: 'medium' },
-                      { text: 'Review team updates', done: false, priority: 'low' },
-                      { text: 'Prepare for client meeting', done: false, priority: 'high' }
-                    ].map((task, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.1 }}
-                        whileHover={{ scale: 1.01, x: 4 }}
-                        className={`flex items-center gap-4 p-4 rounded-xl border ${
-                          task.done ? 'bg-accent/50 border-border' : 'bg-background border-border hover:border-foreground/20'
-                        } transition-all cursor-pointer`}
-                      >
-                        <motion.div 
-                          whileTap={{ scale: 0.9 }}
-                          className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${
-                            task.done ? 'bg-foreground border-foreground' : 'border-muted-foreground/40'
-                          }`}
-                        >
-                          {task.done && <Check className="w-3 h-3 text-background" />}
-                        </motion.div>
-                        <span className={`flex-1 ${task.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                          {task.text}
-                        </span>
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          task.priority === 'high' ? 'bg-foreground/10 text-foreground' :
-                          task.priority === 'medium' ? 'bg-muted text-muted-foreground' :
-                          'bg-muted/50 text-muted-foreground/70'
-                        }`}>
-                          {task.priority}
-                        </span>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                )}
-
-                {activeDemo === 'habits' && (
-                  <motion.div
-                    key="habits"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-6"
-                  >
-                    <h3 className="text-xl font-semibold text-foreground mb-6">Your Habits</h3>
-                    {[
-                      { name: 'Morning Meditation', streak: 12, done: [true, true, true, true, true, false, false] },
-                      { name: 'Read 30 minutes', streak: 7, done: [true, true, true, true, true, true, true] },
-                      { name: 'Exercise', streak: 5, done: [true, true, true, true, true, false, false] }
-                    ].map((habit, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.15 }}
-                        className="p-5 rounded-xl bg-background border border-border"
-                      >
-                        <div className="flex items-center justify-between mb-4">
-                          <div>
-                            <h4 className="font-semibold text-foreground">{habit.name}</h4>
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Flame className="w-4 h-4 text-foreground" />
-                              {habit.streak} day streak
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, j) => (
-                            <motion.div
-                              key={j}
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              transition={{ delay: i * 0.1 + j * 0.05 }}
-                              className={`flex-1 h-10 rounded-lg flex items-center justify-center text-xs font-medium ${
-                                habit.done[j] 
-                                  ? 'bg-foreground text-background' 
-                                  : 'bg-muted text-muted-foreground'
-                              }`}
-                            >
-                              {day}
-                            </motion.div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                )}
-
-                {activeDemo === 'calendar' && (
-                  <motion.div
-                    key="calendar"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                  >
-                    <h3 className="text-xl font-semibold text-foreground mb-6">January 2026</h3>
-                    <div className="grid grid-cols-7 gap-2">
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                        <div key={day} className="text-center text-xs text-muted-foreground font-medium py-2">
-                          {day}
-                        </div>
-                      ))}
-                      {Array.from({ length: 35 }, (_, i) => {
-                        const day = i - 3;
-                        const hasTasks = [2, 5, 8, 12, 15, 19, 22, 26].includes(day);
-                        const isToday = day === 15;
-                        return (
-                          <motion.div
-                            key={i}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: i * 0.01 }}
-                            className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm cursor-pointer transition-all ${
-                              day < 1 || day > 31 ? 'text-muted-foreground/30' :
-                              isToday ? 'bg-foreground text-background font-bold' :
-                              hasTasks ? 'bg-accent hover:bg-accent/80' : 'hover:bg-accent/50'
-                            }`}
-                          >
-                            {day >= 1 && day <= 31 && (
-                              <>
-                                <span>{day}</span>
-                                {hasTasks && !isToday && (
-                                  <div className="w-1 h-1 rounded-full bg-foreground mt-1" />
-                                )}
-                              </>
-                            )}
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeDemo === 'heatmap' && (
-                  <motion.div
-                    key="heatmap"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                  >
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-xl font-semibold text-foreground">Productivity Heatmap</h3>
-                      <span className="text-sm text-muted-foreground">Last 12 weeks</span>
-                    </div>
-                    <div className="space-y-2">
-                      {['Mon', 'Wed', 'Fri'].map((day, dayIndex) => (
-                        <div key={day} className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground w-8">{day}</span>
-                          <div className="flex gap-1 flex-1">
-                            {Array.from({ length: 12 }, (_, weekIndex) => {
-                              const intensity = Math.random();
-                              return (
-                                <motion.div
-                                  key={weekIndex}
-                                  initial={{ opacity: 0, scale: 0 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  transition={{ delay: (dayIndex * 12 + weekIndex) * 0.01 }}
-                                  className={`flex-1 h-6 rounded-sm ${
-                                    intensity > 0.8 ? 'bg-foreground' :
-                                    intensity > 0.6 ? 'bg-foreground/70' :
-                                    intensity > 0.4 ? 'bg-foreground/40' :
-                                    intensity > 0.2 ? 'bg-foreground/20' :
-                                    'bg-muted'
-                                  }`}
-                                />
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-end gap-2 mt-4 text-xs text-muted-foreground">
-                      <span>Less</span>
-                      <div className="flex gap-1">
-                        {[10, 30, 50, 70, 100].map((opacity) => (
-                          <div 
-                            key={opacity} 
-                            className="w-4 h-4 rounded-sm" 
-                            style={{ backgroundColor: `hsl(var(--foreground) / ${opacity / 100})` }}
-                          />
-                        ))}
-                      </div>
-                      <span>More</span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features Grid Section */}
-      <section ref={featuresRef} className="py-24 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              Everything you need to stay productive
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Powerful features wrapped in a minimal interface. No clutter, no distractions.
-            </p>
-          </motion.div>
-          
-          <motion.div 
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-50px" }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6"
-          >
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
-              return (
-                <motion.div 
-                  key={index}
-                  variants={itemVariants}
-                  whileHover={{ 
-                    y: -8, 
-                    scale: 1.02,
-                    transition: { duration: 0.2 }
-                  }}
-                  className="group p-6 rounded-2xl border border-border bg-card hover:bg-accent/50 hover:border-foreground/10 transition-all duration-300 cursor-default hover:shadow-xl hover:shadow-foreground/5"
-                >
-                  <motion.div 
-                    whileHover={{ rotate: [0, -10, 10, 0] }}
-                    transition={{ duration: 0.4 }}
-                    className="w-12 h-12 rounded-xl bg-gradient-to-br from-foreground to-foreground/80 flex items-center justify-center mb-4 shadow-lg group-hover:shadow-foreground/20"
-                  >
-                    <Icon className="w-6 h-6 text-background" />
-                  </motion.div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2 group-hover:text-foreground/90">
-                    {feature.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {feature.description}
-                  </p>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-accent/30 via-background to-background">
-        <div className="max-w-4xl mx-auto">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-              How it works
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Get started in minutes with a simple three-step workflow
-            </p>
-          </motion.div>
-
-          <div className="space-y-8">
-            {steps.map((step, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, x: index % 2 === 0 ? -50 : 50 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.6, delay: index * 0.2 }}
-                className="relative"
-              >
-                <div className={`flex flex-col md:flex-row items-center gap-8 ${
-                  index % 2 === 1 ? 'md:flex-row-reverse' : ''
-                }`}>
-                  {/* Step Number & Content */}
-                  <div className="flex-1 text-center md:text-left">
-                    <motion.div 
-                      whileInView={{ scale: [0.8, 1.1, 1] }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.5 }}
-                      className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-foreground text-background font-bold text-lg mb-4"
-                    >
-                      {index + 1}
-                    </motion.div>
-                    <h3 className="text-2xl font-bold text-foreground mb-3">{step.title}</h3>
-                    <p className="text-muted-foreground text-lg">{step.description}</p>
-                  </div>
-
-                  {/* Visual */}
-                  <motion.div 
-                    whileHover={{ scale: 1.02 }}
-                    className="flex-1 w-full max-w-sm"
-                  >
-                    <div className="p-6 rounded-2xl bg-card border border-border shadow-xl">
-                      {step.visual === 'form' && (
-                        <div className="space-y-4">
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            whileInView={{ width: '100%' }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0.3, duration: 0.5 }}
-                            className="h-10 bg-muted rounded-lg"
-                          />
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            whileInView={{ width: '70%' }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0.5, duration: 0.5 }}
-                            className="h-10 bg-muted rounded-lg"
-                          />
-                          <motion.button
-                            initial={{ opacity: 0 }}
-                            whileInView={{ opacity: 1 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0.7 }}
-                            className="w-full h-10 bg-foreground text-background rounded-lg font-medium"
-                          >
-                            Create Task
-                          </motion.button>
-                        </div>
-                      )}
-                      {step.visual === 'check' && (
-                        <div className="space-y-3">
-                          {[true, true, false].map((checked, i) => (
-                            <motion.div
-                              key={i}
-                              initial={{ opacity: 0, x: -20 }}
-                              whileInView={{ opacity: 1, x: 0 }}
-                              viewport={{ once: true }}
-                              transition={{ delay: 0.3 + i * 0.2 }}
-                              className="flex items-center gap-3"
-                            >
-                              <motion.div 
-                                initial={{ scale: 0 }}
-                                whileInView={{ scale: 1 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: 0.5 + i * 0.2, type: "spring" }}
-                                className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${
-                                  checked ? 'bg-foreground border-foreground' : 'border-muted-foreground/40'
-                                }`}
-                              >
-                                {checked && <Check className="w-4 h-4 text-background" />}
-                              </motion.div>
-                              <div className={`h-3 rounded ${checked ? 'bg-muted w-3/4' : 'bg-foreground/20 w-full'}`} />
-                            </motion.div>
-                          ))}
-                          <motion.div
-                            initial={{ width: 0 }}
-                            whileInView={{ width: '100%' }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 1, duration: 0.5 }}
-                            className="mt-4 flex items-center gap-2 text-sm text-foreground"
-                          >
-                            <Flame className="w-4 h-4" />
-                            <span className="font-medium">5 day streak!</span>
-                          </motion.div>
-                        </div>
-                      )}
-                      {step.visual === 'chart' && (
-                        <div className="space-y-4">
-                          <div className="flex items-end gap-2 h-24">
-                            {[40, 65, 85, 50, 90, 75, 60].map((h, i) => (
-                              <motion.div 
-                                key={i}
-                                initial={{ height: 0 }}
-                                whileInView={{ height: `${h}%` }}
-                                viewport={{ once: true }}
-                                transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
-                                className="flex-1 bg-foreground rounded-t"
-                              />
-                            ))}
-                          </div>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => (
-                              <span key={d}>{d}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                </div>
-
-                {/* Connector Line */}
-                {index < steps.length - 1 && (
-                  <div className="hidden md:block absolute left-1/2 bottom-0 w-px h-8 bg-border -mb-8" />
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Final CTA Section */}
-      <motion.section 
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className="py-24 px-4 sm:px-6 lg:px-8 bg-foreground relative overflow-hidden"
-      >
-        {/* Background decoration */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-background rounded-full blur-3xl" />
-          <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-background rounded-full blur-3xl" />
-        </div>
-
-        <div className="max-w-4xl mx-auto text-center relative z-10">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-background/10 border border-background/20 mb-8"
-          >
-            <Zap className="w-4 h-4 text-background" />
-            <span className="text-sm font-medium text-background/80">Start your productivity journey</span>
-          </motion.div>
-
-          <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-4xl sm:text-5xl font-bold text-background mb-4"
-          >
-            Ready to get focused?
-          </motion.h2>
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
-            className="text-xl text-background/70 mb-10"
-          >
-            Join thousands who've simplified their day.
-          </motion.p>
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
-          >
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
-              <Button 
-                size="lg"
-                onClick={() => navigate('/auth?mode=signup')}
-                className="bg-background text-foreground hover:bg-background/90 px-10 py-7 text-lg group shadow-2xl"
-              >
-                Create Free Account
-                <motion.span
-                  animate={{ x: [0, 4, 0] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </motion.span>
-              </Button>
-            </motion.div>
-          </motion.div>
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.4 }}
-            className="text-sm text-background/50 mt-6"
-          >
-            No credit card required • Free forever for personal use
-          </motion.p>
-        </div>
-      </motion.section>
-
       {/* Footer */}
-      <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-border bg-background">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            {/* Brand */}
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-9 h-9 bg-foreground rounded-xl flex items-center justify-center">
-                  <CheckSquare className="w-5 h-5 text-background" />
-                </div>
-                <span className="text-xl font-bold text-foreground">Monotask</span>
-              </div>
-              <p className="text-muted-foreground text-sm max-w-xs mb-4">
-                A minimal productivity app designed to help you focus on what matters most.
-              </p>
+      <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-border">
+        <motion.div {...fadeUp} className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="group flex items-center gap-2">
+            <div className="w-7 h-7 bg-foreground rounded-lg flex items-center justify-center transition-transform duration-300 group-hover:rotate-6">
+              <CheckSquare className="w-4 h-4 text-background" />
             </div>
+            <span className="text-base font-bold text-foreground font-grotesk">Monotask</span>
+          </div>
 
-            {/* Links */}
-            <div>
-              <h4 className="font-semibold text-foreground mb-4">Product</h4>
-              <ul className="space-y-2">
-                <li>
-                  <button
-                    onClick={() => navigate('/auth?mode=signup')}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Get Started
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={scrollToFeatures}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Features
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => navigate('/auth')}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Login
-                  </button>
-                </li>
-              </ul>
-            </div>
+          <div className="flex items-center gap-6">
+            <button
+              onClick={scrollToFeatures}
+              className="text-sm text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:text-foreground"
+            >
+              Features
+            </button>
+            <button
+              onClick={goToSignin}
+              className="text-sm text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:text-foreground"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={goToSignup}
+              className="text-sm text-muted-foreground transition-all duration-200 hover:-translate-y-0.5 hover:text-foreground"
+            >
+              Get Started
+            </button>
           </div>
-          
-          <div className="pt-8 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} Monotask. All rights reserved.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Made with focus and simplicity in mind.
-            </p>
-          </div>
-        </div>
+
+          <p className="text-sm text-muted-foreground">
+            {new Date().getFullYear()} Monotask
+          </p>
+        </motion.div>
       </footer>
     </div>
   );
