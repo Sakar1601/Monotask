@@ -5,11 +5,136 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, CheckCircle2, XCircle, Clock, Pencil, Trash2, PauseCircle, Flame, Repeat } from 'lucide-react';
+import { Plus, CheckCircle2, XCircle, Clock, Pencil, Trash2, PauseCircle, Flame, Repeat, Grid3x3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useHabits, Habit, HabitLog } from '@/hooks/useHabits';
 import HabitModal from '@/components/HabitModal';
 import ConfirmDialog from '@/components/ConfirmDialog';
+
+const toDateStr = (d: Date) => d.toISOString().split('T')[0];
+
+// Last 7 calendar days ending today (not necessarily Mon-start - a trailing
+// window reads more naturally than a fixed week for a "what have I actually
+// done lately" glance, and avoids an empty-looking grid early in a new
+// ISO week). Real data only: every cell comes from `logs`, already loaded
+// in full by useHabits with no date bound, so this needs no new query.
+const getTrailing7Days = (): { date: string; label: string }[] => {
+  const days: { date: string; label: string }[] = [];
+  const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push({ date: toDateStr(d), label: dayLabels[d.getDay()] });
+  }
+  return days;
+};
+
+// A per-habit weekly grid: one cell per day, filled for completed, a dash
+// for skipped, dim/empty for missed or not-yet-logged. Additive context
+// next to the existing Done/Skip/Miss buttons below, not a replacement for
+// them - today's own log is still logged the same way it always was.
+const WeeklyHabitGrid: React.FC<{ habitId: string; logs: HabitLog[]; reduceMotion: boolean }> = ({
+  habitId,
+  logs,
+  reduceMotion,
+}) => {
+  const days = getTrailing7Days();
+  const logsByDate = new Map(
+    logs.filter((l) => l.habit_id === habitId).map((l) => [l.date, l.status])
+  );
+  const today = toDateStr(new Date());
+
+  return (
+    <div className="flex items-center gap-1.5" role="img" aria-label="Last 7 days">
+      {days.map((day, i) => {
+        const status = logsByDate.get(day.date);
+        const isFuture = day.date > today;
+        return (
+          <motion.div
+            key={day.date}
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.15, delay: reduceMotion ? 0 : i * 0.03 }}
+            title={`${day.date}${status ? `: ${status}` : ''}`}
+            className={cn(
+              'flex h-5 w-5 items-center justify-center rounded-[4px] border text-[10px] font-medium transition-colors',
+              status === 'completed' && 'border-primary bg-primary text-primary-foreground',
+              status === 'skipped' && 'border-border bg-muted text-muted-foreground',
+              status === 'failed' && 'border-destructive/40 bg-destructive/10 text-destructive',
+              !status && !isFuture && 'border-dashed border-border/60 text-transparent',
+              !status && isFuture && 'border-transparent text-transparent'
+            )}
+          >
+            {status === 'completed' && '✓'}
+            {status === 'skipped' && '–'}
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+};
+
+// 30-day density grid across ALL habits (not per-habit) - each cell is a
+// real calendar day, shaded by how many habits were completed that day
+// relative to how many active habits existed to complete, using the exact
+// same hsl(var(--primary) / opacity) intensity technique ProgressView's
+// activity heatmap already uses (see src/components/ProgressView.tsx),
+// reused here rather than inventing a second shading approach.
+const ConsistencyMatrix: React.FC<{ logs: HabitLog[]; activeHabitCount: number; reduceMotion: boolean }> = ({
+  logs,
+  activeHabitCount,
+  reduceMotion,
+}) => {
+  const days: { date: string; dayOfMonth: number }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push({ date: toDateStr(d), dayOfMonth: d.getDate() });
+  }
+
+  const completedCountByDate = new Map<string, number>();
+  logs.forEach((log) => {
+    if (log.status !== 'completed') return;
+    completedCountByDate.set(log.date, (completedCountByDate.get(log.date) || 0) + 1);
+  });
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="mb-1 flex items-center gap-2">
+          <Grid3x3 className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
+          <h3 className="text-base font-semibold text-foreground">Consistency matrix</h3>
+        </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          30-day density across all active habits
+        </p>
+        <div className="grid grid-cols-7 gap-1.5">
+          {days.map((day, i) => {
+            const count = completedCountByDate.get(day.date) || 0;
+            const intensity = activeHabitCount > 0 ? Math.min(count / activeHabitCount, 1) : 0;
+            const opacity = intensity > 0 ? Math.max(0.15, intensity) : 0;
+            return (
+              <motion.div
+                key={day.date}
+                initial={reduceMotion ? false : { opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.15, delay: reduceMotion ? 0 : Math.min(i, 30) * 0.01 }}
+                title={`${day.date}: ${count} of ${activeHabitCount} habits`}
+                className="flex aspect-square items-center justify-center rounded-md border border-border/60 text-[11px] font-medium tabular-nums text-muted-foreground transition-colors"
+                style={{
+                  backgroundColor: opacity > 0 ? `hsl(var(--primary) / ${opacity})` : undefined,
+                  color: opacity > 0.5 ? 'hsl(var(--primary-foreground))' : undefined,
+                }}
+              >
+                {day.dayOfMonth}
+              </motion.div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const STATUS_BADGE: Record<string, string> = {
   completed: 'border-transparent bg-primary/15 text-primary',
@@ -50,6 +175,7 @@ const HabitRow: React.FC<{
   index: number;
   todayLog?: HabitLog;
   streak: number;
+  logs: HabitLog[];
   isLogging: boolean;
   isDeleting: boolean;
   reduceMotion: boolean;
@@ -57,7 +183,7 @@ const HabitRow: React.FC<{
   onLog: (habitId: string, status: 'completed' | 'skipped' | 'failed') => void;
   onEdit: (habit: Habit) => void;
   onDelete: (habitId: string) => void;
-}> = ({ habit, index, todayLog, streak, isLogging, isDeleting, reduceMotion, getFrequencyDisplay, onLog, onEdit, onDelete }) => {
+}> = ({ habit, index, todayLog, streak, logs, isLogging, isDeleting, reduceMotion, getFrequencyDisplay, onLog, onEdit, onDelete }) => {
   const prevStreak = useRef(streak);
   const [celebrate, setCelebrate] = useState(false);
   const prevStatus = useRef(todayLog?.status);
@@ -221,6 +347,10 @@ const HabitRow: React.FC<{
               Miss
             </motion.button>
           </div>
+
+          <div className="mt-3">
+            <WeeklyHabitGrid habitId={habit.id} logs={logs} reduceMotion={reduceMotion} />
+          </div>
         </div>
 
         <div className="ml-4 flex items-center gap-1">
@@ -377,6 +507,7 @@ const HabitsView: React.FC = () => {
                 index={index}
                 todayLog={getTodayLog(habit.id)}
                 streak={computeStreak(habit.id, logs)}
+                logs={logs}
                 isLogging={isLogging}
                 isDeleting={isDeleting}
                 reduceMotion={!!reduceMotion}
@@ -387,6 +518,16 @@ const HabitsView: React.FC = () => {
               />
             ))}
           </AnimatePresence>
+        </div>
+      )}
+
+      {habits.length > 0 && (
+        <div className="mt-6">
+          <ConsistencyMatrix
+            logs={logs}
+            activeHabitCount={habits.filter((h) => h.is_active).length}
+            reduceMotion={!!reduceMotion}
+          />
         </div>
       )}
 

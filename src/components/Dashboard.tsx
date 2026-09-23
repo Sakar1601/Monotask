@@ -19,7 +19,12 @@ const priorityBadgeClass = (priority: string) => {
   }
 };
 
-const StatCard: React.FC<{ label: string; value: number | string; icon: React.ReactNode }> = ({ label, value, icon }) => {
+const StatCard: React.FC<{ label: string; value: number | string; icon: React.ReactNode; progress?: number }> = ({
+  label,
+  value,
+  icon,
+  progress,
+}) => {
   const prefersReducedMotion = useReducedMotion();
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -58,6 +63,16 @@ const StatCard: React.FC<{ label: string; value: number | string; icon: React.Re
               {icon}
             </div>
           </div>
+          {progress !== undefined && (
+            <div className="mt-3 h-1 overflow-hidden rounded-full bg-muted">
+              <motion.div
+                className="h-full rounded-full bg-primary"
+                initial={prefersReducedMotion ? { width: `${progress}%` } : { width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: prefersReducedMotion ? 0 : 0.2 }}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
@@ -125,6 +140,13 @@ const Dashboard: React.FC = () => {
   const activeHabits = habits.filter(habit => habit.is_active).length;
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
+  // Real due-today completion, not just a raw "completed today" count - how
+  // many of the tasks actually due today are done, so the stat card's
+  // progress bar means something concrete rather than an arbitrary fill.
+  const dueToday = tasks.filter(task => task.due_date === todayLocal);
+  const dueTodayCompleted = dueToday.filter(task => task.status === 'completed').length;
+  const dueTodayPercent = dueToday.length > 0 ? Math.round((dueTodayCompleted / dueToday.length) * 100) : 0;
+
   const listVariants = {
     hidden: {},
     show: {
@@ -159,7 +181,12 @@ const Dashboard: React.FC = () => {
         variants={statsGridVariants}
         className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"
       >
-        <StatCard label="Completed today" value={completedTasksToday} icon={<CheckCircle2 className="h-5 w-5" strokeWidth={1.75} />} />
+        <StatCard
+          label="Due today"
+          value={dueToday.length > 0 ? `${dueTodayCompleted}/${dueToday.length}` : completedTasksToday}
+          icon={<CheckCircle2 className="h-5 w-5" strokeWidth={1.75} />}
+          progress={dueToday.length > 0 ? dueTodayPercent : undefined}
+        />
         <StatCard label="Total tasks" value={totalTasks} icon={<Target className="h-5 w-5" strokeWidth={1.75} />} />
         <StatCard label="Pending" value={pendingTasks} icon={<Calendar className="h-5 w-5" strokeWidth={1.75} />} />
         <StatCard label="Active habits" value={activeHabits} icon={<TrendingUp className="h-5 w-5" strokeWidth={1.75} />} />

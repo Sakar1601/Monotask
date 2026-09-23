@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lightbulb, CalendarClock, Sparkles } from 'lucide-react';
+import { Lightbulb, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAiSuggestions, TaskSuggestionPayload, RescheduleSuggestionPayload } from '@/hooks/useAiSuggestions';
@@ -51,10 +51,6 @@ const SuggestionsView: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-6">
-      <h2 className="flex items-center gap-2 font-grotesk text-lg font-semibold text-foreground">
-        <Sparkles className="h-5 w-5 text-primary" strokeWidth={2} />
-        Suggestions
-      </h2>
       {suggestions.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-16 text-center">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">

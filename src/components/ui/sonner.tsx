@@ -1,14 +1,35 @@
-import { useTheme } from "next-themes"
+import { useEffect, useState } from "react"
 import { Toaster as Sonner, toast } from "sonner"
 
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
+// There is no next-themes ThemeProvider mounted in this app - theme is
+// driven entirely by a manual `.dark` class on <html> (from useSettings for
+// signed-in users, from localStorage for the landing page). Reading that
+// class directly, instead of next-themes' useTheme() (which falls back to
+// the OS prefers-color-scheme, not the app's actual state), is what makes
+// the toast follow the same light/dark state as everything else on screen.
+function useIsDark() {
+  const [isDark, setIsDark] = useState(
+    () => typeof document !== "undefined" && document.documentElement.classList.contains("dark")
+  )
+
+  useEffect(() => {
+    const root = document.documentElement
+    const observer = new MutationObserver(() => setIsDark(root.classList.contains("dark")))
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] })
+    return () => observer.disconnect()
+  }, [])
+
+  return isDark
+}
+
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const isDark = useIsDark()
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={isDark ? "dark" : "light"}
       className="toaster group"
       toastOptions={{
         classNames: {

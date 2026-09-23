@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Plus, CalendarClock } from 'lucide-react';
-import { useTasks } from '@/hooks/useTasks';
+import { ChevronLeft, ChevronRight, Plus, CalendarClock, Clock } from 'lucide-react';
+import { useTasks, formatDateLocal } from '@/hooks/useTasks';
 import { useTaskInstances } from '@/hooks/useTaskInstances';
 import { useEvents, Event } from '@/hooks/useEvents';
 import { getTasksForDate as getOccurrencesForDate, generateRecurringInstances, RecurringTaskInstance } from '@/utils/recurringTasks';
@@ -293,6 +293,92 @@ const CalendarView: React.FC = () => {
     return days;
   };
 
+  // A vertical timeline for today's real scheduled items (tasks with a
+  // due_time, events with a start_time), with a live "now" row inserted at
+  // its actual chronological position among them - not a proportional
+  // pixel-position line (that would need a fixed day-window assumption
+  // this app has no real concept of), just an honest "here's what's next"
+  // marker computed from the real current time. No focus-mode/deep-work
+  // tracking here - this app has no such feature, so none is implied.
+  const renderTodaysFlow = () => {
+    const todayStr = formatDateLocal(new Date());
+    const now = new Date();
+
+    type FlowItem =
+      | { kind: 'task'; id: string; time: string; sortKey: string; title: string; completed: boolean }
+      | { kind: 'event'; id: string; time: string; sortKey: string; title: string; location?: string | null };
+
+    const todaysTasks = getOccurrencesForDate(tasks, instances, todayStr).filter(
+      (t) => !!t.due_time
+    );
+    const todaysEvents = events.filter((e) => formatDateLocal(new Date(e.start_time)) === todayStr);
+
+    const items: FlowItem[] = [
+      ...todaysTasks.map((t) => ({
+        kind: 'task' as const,
+        id: `${t.id}-${getOccurrenceDate(t)}`,
+        time: t.due_time as string,
+        sortKey: t.due_time as string,
+        title: t.title,
+        completed: isOccurrenceCompleted(t),
+      })),
+      ...todaysEvents.map((e) => {
+        const d = new Date(e.start_time);
+        const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const sortKey = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        return { kind: 'event' as const, id: e.id, time, sortKey, title: e.title, location: e.location };
+      }),
+    ].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+    if (items.length === 0) return null;
+
+    const nowSortKey = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const nowLabel = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const nowInsertIndex = items.findIndex((item) => item.sortKey > nowSortKey);
+    const rows: Array<FlowItem | { kind: 'now' }> = [...items];
+    rows.splice(nowInsertIndex === -1 ? items.length : nowInsertIndex, 0, { kind: 'now' });
+
+    return (
+      <div className="mb-6 rounded-lg border border-border bg-card p-6">
+        <h3 className="font-grotesk text-lg font-semibold text-foreground">Today's flow</h3>
+        <div className="relative mt-4 space-y-0 border-l border-border pl-6">
+          {rows.map((row, i) =>
+            row.kind === 'now' ? (
+              <div key="now-marker" className="relative flex items-center gap-3 py-2">
+                <span className="absolute -left-[27px] flex h-3 w-3 items-center justify-center">
+                  <span
+                    className={cn(
+                      'absolute h-3 w-3 rounded-full bg-primary',
+                      !prefersReducedMotion && 'animate-ping opacity-60'
+                    )}
+                  />
+                  <span className="relative h-2 w-2 rounded-full bg-primary" />
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-wide text-primary">Now &middot; {nowLabel}</span>
+              </div>
+            ) : (
+              <div key={row.id} className="relative flex items-center gap-4 py-2.5">
+                <span className="absolute -left-[25px] h-2 w-2 rounded-full border-2 border-border bg-background" />
+                <span className="w-16 shrink-0 text-sm tabular-nums text-muted-foreground">{row.time}</span>
+                <span
+                  className={cn(
+                    'flex-1 truncate text-sm font-medium text-foreground',
+                    row.kind === 'task' && row.completed && 'text-muted-foreground line-through'
+                  )}
+                >
+                  {row.title}
+                </span>
+                {row.kind === 'event' && row.location && (
+                  <span className="shrink-0 truncate text-xs text-muted-foreground">{row.location}</span>
+                )}
+              </div>
+            )
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderAgendaView = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -305,7 +391,9 @@ const CalendarView: React.FC = () => {
       .slice(0, 10);
 
     return (
-      <div className="rounded-lg border border-border bg-card p-6">
+      <div>
+        {renderTodaysFlow()}
+        <div className="rounded-lg border border-border bg-card p-6">
         <h3 className="font-grotesk text-lg font-semibold text-foreground">Upcoming tasks</h3>
         {upcomingTasks.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
@@ -354,6 +442,7 @@ const CalendarView: React.FC = () => {
             </AnimatePresence>
           </motion.div>
         )}
+        </div>
       </div>
     );
   };
