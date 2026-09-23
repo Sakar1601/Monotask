@@ -85,22 +85,24 @@ const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick, o
         </button>
       )}
 
-      <motion.div
-        whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
-        transition={SPRING_SNAPPY}
-        className="shrink-0"
-      >
-        <Button onClick={onQuickAdd} size="sm" className="px-3 sm:px-4">
-          <motion.span
-            whileHover={shouldReduceMotion ? undefined : { rotate: 90 }}
-            transition={SPRING_SNAPPY}
-            className="flex"
-          >
-            <Plus className="w-4 h-4" strokeWidth={2} />
-          </motion.span>
-          <span className="hidden sm:inline">Quick Add</span>
-        </Button>
-      </motion.div>
+      {currentView !== 'tasks' && (
+        <motion.div
+          whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
+          transition={SPRING_SNAPPY}
+          className="shrink-0"
+        >
+          <Button onClick={onQuickAdd} size="sm" className="px-3 sm:px-4">
+            <motion.span
+              whileHover={shouldReduceMotion ? undefined : { rotate: 90 }}
+              transition={SPRING_SNAPPY}
+              className="flex"
+            >
+              <Plus className="w-4 h-4" strokeWidth={2} />
+            </motion.span>
+            <span className="hidden sm:inline">Quick Add</span>
+          </Button>
+        </motion.div>
+      )}
       </div>
     </div>
   );
