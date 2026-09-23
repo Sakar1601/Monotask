@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { UserPlus } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -11,16 +13,19 @@ interface UpgradeAccountModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const SPRING_SNAPPY = { type: 'spring' as const, stiffness: 300, damping: 30 };
+
 const UpgradeAccountModal = ({ open, onOpenChange }: UpgradeAccountModalProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { linkEmailPassword } = useAuth();
+  const shouldReduceMotion = useReducedMotion();
 
   const handleUpgrade = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (password !== confirmPassword) {
       toast.error('Passwords do not match');
       return;
@@ -49,9 +54,25 @@ const UpgradeAccountModal = ({ open, onOpenChange }: UpgradeAccountModalProps) =
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      {/* Floating overlay layer: a tasteful glass surface with a solid fallback for
+          prefers-reduced-transparency, plus a bouncier entrance than the stock dialog
+          fade (the shared Dialog primitive's own animate-in classes are left intact
+          to avoid touching a component other surfaces also depend on). */}
+      <DialogContent
+        className="sm:max-w-md !duration-300 data-[state=open]:[animation-timing-function:cubic-bezier(0.34,1.56,0.64,1)] bg-background/90 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 [@media(prefers-reduced-transparency:reduce)]:bg-background [@media(prefers-reduced-transparency:reduce)]:backdrop-blur-0 border border-border/80 shadow-2xl shadow-brand/5"
+      >
         <DialogHeader>
-          <DialogTitle>Create Your Account</DialogTitle>
+          <div className="flex items-center gap-2.5">
+            <motion.div
+              initial={shouldReduceMotion ? undefined : { scale: 0.5, opacity: 0 }}
+              animate={shouldReduceMotion ? undefined : { scale: 1, opacity: 1 }}
+              transition={{ ...SPRING_SNAPPY, delay: 0.05 }}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-brand/10 shrink-0"
+            >
+              <UserPlus className="h-4 w-4 text-brand" strokeWidth={2} />
+            </motion.div>
+            <DialogTitle className="font-grotesk">Create your account</DialogTitle>
+          </div>
           <DialogDescription>
             Add an email and password to save your data permanently. All your existing tasks and habits will be kept.
           </DialogDescription>
@@ -96,9 +117,20 @@ const UpgradeAccountModal = ({ open, onOpenChange }: UpgradeAccountModalProps) =
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
               Cancel
             </Button>
-            <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? 'Creating...' : 'Create Account'}
-            </Button>
+            <motion.div
+              className="flex-1"
+              whileHover={shouldReduceMotion || loading ? undefined : { scale: 1.02 }}
+              whileTap={shouldReduceMotion || loading ? undefined : { scale: 0.97 }}
+              transition={SPRING_SNAPPY}
+            >
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full shadow-[0_0_0_0_hsl(var(--brand)/0.5)] hover:shadow-[0_0_20px_-2px_hsl(var(--brand)/0.5)] transition-shadow duration-300"
+              >
+                {loading ? 'Creating...' : 'Create Account'}
+              </Button>
+            </motion.div>
           </div>
         </form>
       </DialogContent>

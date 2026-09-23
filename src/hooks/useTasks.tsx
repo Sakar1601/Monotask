@@ -119,19 +119,25 @@ export const useTasks = () => {
     },
   });
 
+  // A checkbox tap only ever touches status/completed_at - everything else
+  // (title, due_date, priority, tags, etc.) goes through the edit modal. Used
+  // to tell the two apart so we don't toast-spam the app's most common action.
+  const isSimpleStatusToggle = (updates: Partial<Task>) =>
+    Object.keys(updates).every((key) => key === 'status' || key === 'completed_at');
+
   const updateTaskMutation = useMutation({
     mutationFn: async ({ id, tags, ...updates }: Partial<Task> & { id: string }) => {
       const updateData = {
         ...updates,
         updated_at: new Date().toISOString()
       };
-      
+
       if (updates.status === 'completed' && !updates.completed_at) {
         updateData.completed_at = new Date().toISOString();
       } else if (updates.status === 'pending') {
         updateData.completed_at = null;
       }
-      
+
       const { data, error } = await supabase
         .from('tasks')
         .update(updateData)
@@ -146,15 +152,42 @@ export const useTasks = () => {
       if (error) throw error;
       return data as Task;
     },
-    onSuccess: (updatedTask) => {
+    onMutate: async ({ id, tags, ...updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks', user?.id] });
+
+      const previousTasks = queryClient.getQueryData<Task[]>(['tasks', user?.id]);
+
       queryClient.setQueryData(['tasks', user?.id], (oldTasks: Task[] = []) => {
-        return oldTasks.map(task => 
+        return oldTasks.map((task) => {
+          if (task.id !== id) return task;
+
+          const optimisticTask: Task = { ...task, ...updates };
+          if (updates.status === 'completed' && !updates.completed_at) {
+            optimisticTask.completed_at = new Date().toISOString();
+          } else if (updates.status === 'pending') {
+            optimisticTask.completed_at = null;
+          }
+          return optimisticTask;
+        });
+      });
+
+      return { previousTasks, isSimpleToggle: isSimpleStatusToggle(updates) };
+    },
+    onSuccess: (updatedTask, _variables, context) => {
+      queryClient.setQueryData(['tasks', user?.id], (oldTasks: Task[] = []) => {
+        return oldTasks.map(task =>
           task.id === updatedTask.id ? updatedTask : task
         );
       });
-      
+
       queryClient.invalidateQueries({ queryKey: ['tasks', user?.id] });
-      toast.success('Task updated successfully');
+
+      // The checkbox toggle is the app's most frequent interaction and the
+      // checkbox itself already gives visible feedback - only surface a toast
+      // for real edits (title/due date/priority/tags/etc via the modal).
+      if (!context?.isSimpleToggle) {
+        toast.success('Task updated successfully');
+      }
 
       if (updatedTask.sync_connection_id && updatedTask.external_task_id) {
         supabase.functions
@@ -179,8 +212,11 @@ export const useTasks = () => {
           });
       }
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
       console.error('Task update failed:', error);
+      if (context?.previousTasks) {
+        queryClient.setQueryData(['tasks', user?.id], context.previousTasks);
+      }
       toast.error('Failed to update task');
     },
   });

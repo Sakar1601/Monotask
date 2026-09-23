@@ -2,9 +2,11 @@
 import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
+import { motion, useReducedMotion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Download, Sparkles } from 'lucide-react';
 import { useTasks } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
@@ -12,12 +14,27 @@ import { useWeeklySummary } from '@/hooks/useWeeklySummary';
 import { exportToPDF } from '@/utils/pdfExport';
 import { toCsvRow } from '@/utils/csv';
 
+// Custom animated fill replacing the static Radix Progress indicator here -
+// springs from 0 to value on mount and eases to any later value change,
+// instead of snapping.
+const AnimatedProgressBar: React.FC<{ value: number; reduceMotion: boolean | null }> = ({ value, reduceMotion }) => (
+  <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
+    <motion.div
+      className="h-full w-full origin-left rounded-full bg-primary"
+      initial={reduceMotion ? { scaleX: value / 100 } : { scaleX: 0 }}
+      animate={{ scaleX: value / 100 }}
+      transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 100, damping: 20 }}
+    />
+  </div>
+);
+
 const ProgressView: React.FC = () => {
   const { user } = useAuth();
   const { tasks } = useTasks();
   const { habits, logs } = useHabits();
   const [summaryRequested, setSummaryRequested] = useState(false);
   const { data: weeklySummary, isLoading: isSummaryLoading, error: summaryError } = useWeeklySummary(summaryRequested);
+  const reduceMotion = useReducedMotion();
 
   // Weekly task completion data
   const { data: weeklyData = [] } = useQuery({
@@ -27,7 +44,7 @@ const ProgressView: React.FC = () => {
 
       const startOfWeek = new Date();
       startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-      
+
       const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const data = [];
 
@@ -77,11 +94,11 @@ const ProgressView: React.FC = () => {
         .eq('status', 'completed');
 
       const tagCounts: Record<string, { name: string; color: string; count: number }> = {};
-      
+
       tasksByTag?.forEach((task: { tags: { name: string; color: string } | null }) => {
         const tagName = task.tags?.name || 'No Tag';
         const tagColor = task.tags?.color || '#9ca3af';
-        
+
         if (!tagCounts[tagName]) {
           tagCounts[tagName] = { name: tagName, color: tagColor, count: 0 };
         }
@@ -89,7 +106,7 @@ const ProgressView: React.FC = () => {
       });
 
       const total = Object.values(tagCounts).reduce((sum, tag) => sum + tag.count, 0);
-      
+
       return Object.values(tagCounts).map(tag => ({
         name: tag.name,
         value: total > 0 ? Math.round((tag.count / total) * 100) : 0,
@@ -203,183 +220,195 @@ const ProgressView: React.FC = () => {
   };
 
   const kpis = [
-    { 
-      label: 'Tasks Completed This Week', 
-      value: `${completedThisWeek}/${totalThisWeek}`, 
+    {
+      label: 'Tasks completed this week',
+      value: `${completedThisWeek}/${totalThisWeek}`,
       percentage: totalThisWeek > 0 ? Math.round((completedThisWeek / totalThisWeek) * 100) : 0
     },
-    { label: 'Active Habits', value: `${habits.filter(h => h.is_active).length}`, percentage: null },
-    { label: 'Average Daily Tasks', value: averageDaily, percentage: null },
-    { label: 'Total Tasks', value: `${tasks.length}`, percentage: null },
+    { label: 'Active habits', value: `${habits.filter(h => h.is_active).length}`, percentage: null },
+    { label: 'Average daily tasks', value: averageDaily, percentage: null },
+    { label: 'Total tasks', value: `${tasks.length}`, percentage: null },
   ];
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors">
-      <div className="flex justify-between items-center">
+    <div className="min-h-screen space-y-6 bg-background p-6 transition-colors">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-2xl font-bold text-black dark:text-white">Progress & Analytics</h2>
-          <p className="text-gray-600 dark:text-gray-400">Track your productivity insights</p>
+          {/* TopBar already renders "Progress & Analytics" as the page h1. */}
+          <p className="text-base font-medium text-foreground">Track your productivity insights</p>
         </div>
-        <div className="flex space-x-2">
-          <Button 
-            onClick={handleExportPDF}
-            variant="outline"
-            className="border-gray-300 dark:border-gray-700 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
-          >
-            <Download className="w-4 h-4 mr-2" />
+        <div className="flex gap-2">
+          <Button onClick={handleExportPDF} variant="outline">
+            <Download className="mr-2 h-4 w-4" strokeWidth={2} />
             Export PDF
           </Button>
-          <Button 
-            onClick={handleExportCSV}
-            variant="outline"
-            className="border-gray-300 dark:border-gray-700 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
-          >
-            <Download className="w-4 h-4 mr-2" />
+          <Button onClick={handleExportCSV} variant="outline">
+            <Download className="mr-2 h-4 w-4" strokeWidth={2} />
             Export CSV
           </Button>
         </div>
       </div>
 
       {/* AI Weekly Summary */}
-      <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-        <div className="flex items-start justify-between gap-4">
+      <Card>
+        <CardContent className="flex items-start justify-between gap-4 p-4">
           <div className="flex items-start gap-3">
-            <Sparkles className="w-5 h-5 mt-0.5 text-gray-500 dark:text-gray-400 shrink-0" />
+            <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
             <div>
-              <h3 className="font-medium text-black dark:text-white">AI Weekly Summary</h3>
+              <h3 className="font-medium text-foreground">AI weekly summary</h3>
               {!summaryRequested && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Get a short AI-generated recap of your last 7 days.</p>
+                <p className="text-sm text-muted-foreground">Get a short AI-generated recap of your last 7 days.</p>
               )}
               {summaryRequested && isSummaryLoading && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Generating summary...</p>
+                <p className="text-sm text-muted-foreground">Generating summary...</p>
               )}
               {summaryRequested && summaryError && (
-                <p className="text-sm text-red-600 dark:text-red-400">{(summaryError as Error).message}</p>
+                <p className="text-sm text-destructive">{(summaryError as Error).message}</p>
               )}
               {summaryRequested && weeklySummary && (
-                <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{weeklySummary.summary}</p>
+                <p className="mt-1 text-sm text-foreground/80">{weeklySummary.summary}</p>
               )}
             </div>
           </div>
           {!summaryRequested && (
-            <Button
-              onClick={() => setSummaryRequested(true)}
-              variant="outline"
-              className="shrink-0 border-gray-300 dark:border-gray-700 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
+            <Button onClick={() => setSummaryRequested(true)} variant="outline" className="shrink-0">
               Generate
             </Button>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi, index) => (
-          <div key={index} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors">
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{kpi.label}</p>
-            <p className="text-2xl font-bold text-black dark:text-white">{kpi.value}</p>
-            {kpi.percentage !== null && (
-              <div className="mt-3">
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div 
-                    className="bg-black dark:bg-white h-2 rounded-full transition-all" 
-                    style={{ width: `${kpi.percentage}%` }}
-                  ></div>
-                </div>
-              </div>
-            )}
-          </div>
+          <motion.div
+            key={index}
+            initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={reduceMotion ? undefined : { y: -3 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: reduceMotion ? 0 : index * 0.07 }}
+          >
+            <Card className="h-full transition-colors">
+              <CardContent className="p-6">
+                <p className="mb-2 text-sm font-medium text-muted-foreground">{kpi.label}</p>
+                <p className="font-grotesk text-2xl font-semibold tabular-nums text-foreground">{kpi.value}</p>
+                {kpi.percentage !== null && (
+                  <div className="mt-3">
+                    <AnimatedProgressBar value={kpi.percentage} reduceMotion={reduceMotion} />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
         ))}
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Weekly Progress */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors">
-          <h3 className="text-lg font-semibold text-black dark:text-white mb-4">Weekly Task Completion</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={weeklyData}>
-              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} />
-              <Bar dataKey="completed" fill="currentColor" className="fill-black dark:fill-white" radius={[2, 2, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        >
+        <Card className="transition-colors">
+          <CardContent className="p-6">
+            <h3 className="mb-4 text-lg font-semibold text-foreground">Weekly task completion</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={weeklyData}>
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} className="text-muted-foreground" />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} className="text-muted-foreground" />
+                <Bar dataKey="completed" className="fill-primary" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+        </motion.div>
 
         {/* Category Distribution */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors">
-          <h3 className="text-lg font-semibold text-black dark:text-white mb-4">Tasks by Category</h3>
-          <div className="flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={40}
-                  outerRadius={80}
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-4 space-y-2">
-            {categoryData.map((item, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div 
-                    className="w-3 h-3 rounded-full mr-2" 
-                    style={{ backgroundColor: item.color }}
-                  ></div>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{item.name}</span>
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: reduceMotion ? 0 : 0.08 }}
+        >
+        <Card className="transition-colors">
+          <CardContent className="p-6">
+            <h3 className="mb-4 text-lg font-semibold text-foreground">Tasks by category</h3>
+            <div className="flex items-center justify-center">
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={80}
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 space-y-2">
+              {categoryData.map((item, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div
+                      className="mr-2 h-3 w-3 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    ></div>
+                    <span className="text-sm text-muted-foreground">{item.name}</span>
+                  </div>
+                  <span className="text-sm font-medium tabular-nums text-foreground">{item.value}%</span>
                 </div>
-                <span className="text-sm font-medium text-black dark:text-white">{item.value}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        </motion.div>
       </div>
 
       {/* Activity Heatmap */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 transition-colors">
-        <h3 className="text-lg font-semibold text-black dark:text-white mb-4">Activity Heatmap</h3>
-        <div className="grid grid-cols-7 gap-1">
-          {heatmapData.map((day, i) => {
-            const intensity = Math.min(day.count / 5, 1); // Normalize to 0-1 scale
-            const opacity = Math.max(0.1, intensity);
-            
-            return (
-              <div
-                key={i}
-                className="w-4 h-4 rounded-sm bg-gray-200 dark:bg-gray-700 transition-colors"
-                style={{
-                  backgroundColor: intensity > 0 ? (
-                    document.documentElement.classList.contains('dark') ? 
-                    `rgba(255, 255, 255, ${opacity})` : 
-                    `rgba(0, 0, 0, ${opacity})`
-                  ) : undefined
-                }}
-                title={`${day.date}: ${day.count} activities`}
-              />
-            );
-          })}
-        </div>
-        <div className="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-400">
-          <span>Less</span>
-          <div className="flex items-center space-x-1">
-            <div className="w-3 h-3 bg-gray-200 dark:bg-gray-700 rounded-sm"></div>
-            <div className="w-3 h-3 bg-gray-400 dark:bg-gray-500 rounded-sm"></div>
-            <div className="w-3 h-3 bg-gray-600 dark:bg-gray-300 rounded-sm"></div>
-            <div className="w-3 h-3 bg-black dark:bg-white rounded-sm"></div>
+      <Card className="transition-colors">
+        <CardContent className="p-6">
+          <h3 className="mb-4 text-lg font-semibold text-foreground">Activity heatmap</h3>
+          <div className="grid grid-cols-7 gap-1">
+            {heatmapData.map((day, i) => {
+              const intensity = Math.min(day.count / 5, 1); // Normalize to 0-1 scale
+              const opacity = Math.max(0.12, intensity);
+
+              return (
+                <motion.div
+                  key={i}
+                  initial={reduceMotion ? false : { opacity: 0, scale: 0.6 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.15, delay: reduceMotion ? 0 : Math.min(i, 40) * 0.004 }}
+                  className="h-4 w-4 rounded-sm bg-muted transition-colors"
+                  style={{
+                    backgroundColor: intensity > 0 ? `hsl(var(--primary) / ${opacity})` : undefined,
+                  }}
+                  title={`${day.date}: ${day.count} activities`}
+                />
+              );
+            })}
           </div>
-          <span>More</span>
-        </div>
-      </div>
+          <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+            <span>Less</span>
+            <div className="flex items-center space-x-1">
+              <div className="h-3 w-3 rounded-sm bg-muted"></div>
+              <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: 'hsl(var(--primary) / 0.35)' }}></div>
+              <div className="h-3 w-3 rounded-sm" style={{ backgroundColor: 'hsl(var(--primary) / 0.7)' }}></div>
+              <div className="h-3 w-3 rounded-sm bg-primary"></div>
+            </div>
+            <span>More</span>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

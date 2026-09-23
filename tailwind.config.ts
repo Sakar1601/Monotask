@@ -21,8 +21,15 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				'sans': ['Inter', 'system-ui', 'sans-serif'],
+				// Inter -> Geist: Inter is explicitly the most common AI/default
+				// choice (taste-skill flags it as discouraged-by-default), and
+				// reads as generic at this app's information density. Geist
+				// (Vercel's typeface) keeps the same clean/legible register but
+				// with more character, and matches the dark, Linear/Vercel-
+				// adjacent register the rest of this pass leans into.
+				'sans': ['Geist', 'system-ui', 'sans-serif'],
 				'grotesk': ['Space Grotesk', 'system-ui', 'sans-serif'],
+				'mono': ['Geist Mono', 'ui-monospace', 'monospace'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
@@ -33,6 +40,10 @@ export default {
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
 					foreground: 'hsl(var(--primary-foreground))'
+				},
+				brand: {
+					DEFAULT: 'hsl(var(--brand))',
+					foreground: 'hsl(var(--brand-foreground))'
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',

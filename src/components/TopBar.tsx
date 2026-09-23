@@ -1,6 +1,8 @@
 
 import React from 'react';
 import { Plus, Menu } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
 
 interface TopBarProps {
   onQuickAdd: () => void;
@@ -8,7 +10,11 @@ interface TopBarProps {
   onMenuClick?: () => void;
 }
 
+const SPRING_SNAPPY = { type: 'spring' as const, stiffness: 300, damping: 30 };
+
 const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick }) => {
+  const shouldReduceMotion = useReducedMotion();
+
   const today = new Date();
   const formattedDate = today.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -29,28 +35,55 @@ const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick })
   };
 
   return (
-    <div className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 sm:px-6 transition-colors">
+    <div className="h-16 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 [@media(prefers-reduced-transparency:reduce)]:bg-background border-b border-border flex items-center justify-between gap-3 px-4 sm:px-6 transition-colors">
       <div className="flex items-center gap-3 min-w-0">
-        <button
+        <motion.button
           onClick={onMenuClick}
-          className="md:hidden p-2 -ml-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors shrink-0"
+          whileTap={shouldReduceMotion ? undefined : { scale: 0.9 }}
+          transition={SPRING_SNAPPY}
+          className="md:hidden p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Open navigation menu"
         >
-          <Menu className="w-5 h-5" />
-        </button>
+          <Menu className="w-5 h-5" strokeWidth={2} />
+        </motion.button>
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-black dark:text-white truncate">{viewTitles[currentView as keyof typeof viewTitles]}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">{formattedDate}</p>
+          {/* This is the page's one real heading - the view components
+              below used to render their own second <h1> repeating this
+              same text (e.g. "Task Manager" here AND "Task Manager" again
+              as the first thing in the scrollable body), which was both a
+              redundant-heading a11y issue and wasted vertical space for no
+              new information. This h1 is now the single source of truth;
+              each view's body starts directly with its subtitle/stats and
+              primary action instead of re-announcing the title. */}
+          <motion.h1
+            key={currentView}
+            initial={shouldReduceMotion ? undefined : { opacity: 0, y: -4 }}
+            animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="text-xl font-semibold font-grotesk tracking-tight text-foreground truncate"
+          >
+            {viewTitles[currentView as keyof typeof viewTitles]}
+          </motion.h1>
+          <p className="text-sm text-muted-foreground hidden sm:block truncate">{formattedDate}</p>
         </div>
       </div>
 
-      <button
-        onClick={onQuickAdd}
-        className="flex items-center px-3 sm:px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded-md hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors shrink-0"
+      <motion.div
+        whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
+        transition={SPRING_SNAPPY}
+        className="shrink-0"
       >
-        <Plus className="w-4 h-4 sm:mr-2" />
-        <span className="hidden sm:inline">Quick Add</span>
-      </button>
+        <Button onClick={onQuickAdd} size="sm" className="px-3 sm:px-4">
+          <motion.span
+            whileHover={shouldReduceMotion ? undefined : { rotate: 90 }}
+            transition={SPRING_SNAPPY}
+            className="flex"
+          >
+            <Plus className="w-4 h-4" strokeWidth={2} />
+          </motion.span>
+          <span className="hidden sm:inline">Quick Add</span>
+        </Button>
+      </motion.div>
     </div>
   );
 };

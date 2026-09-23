@@ -1,6 +1,9 @@
 
-/* Import Google Fonts for minimal, tech-savvy typography */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+/* Import Google Fonts for minimal, tech-savvy typography. Geist is the new
+   app-wide default body font (see tailwind.config.ts / useSettings.tsx) -
+   Inter and DM Sans stay imported since useSettings still lets a saved
+   account keep either as its font preference. */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -18,8 +21,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 5%;
 
-    --primary: 0 0% 7%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 7%;
@@ -30,12 +33,27 @@
     --accent: 0 0% 96%;
     --accent-foreground: 0 0% 7%;
 
-    --destructive: 0 0% 30%;
+    /* Destructive was pure grayscale before this pass, indistinguishable from
+       body text. Errors/deletes need a real semantic color, separate from
+       the monochrome base and from the --brand accent (Color Consistency
+       Lock exempts semantic state per taste-skill). Muted brick red keeps
+       saturation restrained rather than a loud alert red. */
+    --destructive: 4 62% 44%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 0 0% 90%;
     --input: 0 0% 90%;
-    --ring: 0 0% 7%;
+    --ring: 0 0% 9%;
+
+    /* Pure monochrome, no accent hue (superseded the earlier burnt-amber
+       --brand token by request - "monotask" as a product is about cutting
+       visual noise, not adding a color to look at). --brand is kept as an
+       alias of --primary/--foreground, not removed, so every component that
+       already references bg-brand/text-brand/shadow-brand across the app
+       keeps working and simply renders in grayscale. --destructive stays a
+       real hue: errors are a semantic exception, not decoration. */
+    --brand: 0 0% 9%;
+    --brand-foreground: 0 0% 100%;
 
     --radius: 0.5rem;
 
@@ -60,7 +78,7 @@
     --popover-foreground: 0 0% 98%;
 
     --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 7%;
+    --primary-foreground: 0 0% 9%;
 
     --secondary: 0 0% 15%;
     --secondary-foreground: 0 0% 98%;
@@ -71,12 +89,15 @@
     --accent: 0 0% 15%;
     --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 0% 70%;
+    --destructive: 4 68% 60%;
     --destructive-foreground: 0 0% 7%;
 
     --border: 0 0% 15%;
     --input: 0 0% 15%;
     --ring: 0 0% 98%;
+
+    --brand: 0 0% 98%;
+    --brand-foreground: 0 0% 9%;
 
     --sidebar-background: 0 0% 7%;
     --sidebar-foreground: 0 0% 80%;
@@ -140,5 +161,35 @@
   
   .grid-minimal > * {
     background-color: hsl(0 0% 100%);
+  }
+}
+
+/* App-interior view switches (Dashboard/Tasks/Calendar/...) go through the
+   View Transitions API - see src/pages/Index.tsx's changeView. The browser
+   default is a flat ~250ms cross-fade; this tunes it to the same expo-out
+   curve and timing used everywhere else in the app's motion language, and
+   gives shared elements (view-transition-name'd task/habit rows) a slightly
+   longer, spring-adjacent morph instead of a generic fade. prefers-reduced-
+   motion is enforced twice on purpose: changeView already skips
+   startViewTransition entirely for a reduced-motion user, but this stays as
+   a hard CSS-level backstop in case that JS check is ever bypassed. */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.32s;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  ::view-transition-group(*) {
+    animation-duration: 0.38s;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

@@ -1,11 +1,14 @@
 
-import React, { useState } from 'react';
-import { Plus, Search, Check, Edit, Trash2, Clock, Calendar, Sparkles } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion, useMotionValue, useTransform, type PanInfo } from 'framer-motion';
+import { Plus, Search, Check, Pencil, Trash2, Clock, Calendar, Sparkles, ListChecks, CalendarClock, AlarmClock, ListTodo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { useTasks, Task, formatDateLocal } from '@/hooks/useTasks';
 import { useTaskInstances } from '@/hooks/useTaskInstances';
 import { useTags } from '@/hooks/useTags';
@@ -20,6 +23,70 @@ import ConfirmDialog from './ConfirmDialog';
 // tracking, so isOccurrenceCompleted falls back to task.status.
 const asOccurrence = (task: Task): RecurringTaskInstance => ({ ...task, instance_date: task.due_date || '' });
 
+const PRIORITY_STYLES: Record<string, string> = {
+  high: 'border-destructive/40 text-destructive',
+  medium: 'border-foreground/25 text-foreground',
+  low: 'border-transparent bg-muted text-muted-foreground',
+};
+
+const EmptyState: React.FC<{ icon: React.ReactNode; title: string; description: string; cta?: React.ReactNode }> = ({ icon, title, description, cta }) => (
+  <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border py-16 text-center">
+    <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+      {icon}
+    </div>
+    <h3 className="font-grotesk text-base font-medium text-foreground">{title}</h3>
+    <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
+    {cta && <div className="mt-2">{cta}</div>}
+  </div>
+);
+
+// Small radial dot-burst fired once when a task flips to complete. Hand-rolled
+// with a handful of absolutely-positioned motion.span dots rather than a
+// particle library - fades out on its own via AnimatePresence.
+const CompletionBurst: React.FC<{ active: boolean; onDone: () => void }> = ({ active, onDone }) => {
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion) return null;
+  const dots = [0, 1, 2, 3, 4, 5];
+  return (
+    <AnimatePresence onExitComplete={onDone}>
+      {active && (
+        <motion.span className="pointer-events-none absolute inset-0 z-10" initial={false}>
+          {dots.map((i) => {
+            const angle = (i / dots.length) * Math.PI * 2;
+            const x = Math.cos(angle) * 14;
+            const y = Math.sin(angle) * 14;
+            return (
+              <motion.span
+                key={i}
+                className="absolute left-1/2 top-1/2 h-1 w-1 rounded-full bg-primary"
+                initial={{ opacity: 1, scale: 0.6, x: 0, y: 0 }}
+                animate={{ opacity: 0, scale: 1, x, y }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              />
+            );
+          })}
+        </motion.span>
+      )}
+    </AnimatePresence>
+  );
+};
+
+const TaskListSkeleton: React.FC = () => (
+  <div className="space-y-3">
+    {[0, 1, 2].map((i) => (
+      <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-card p-4">
+        <Skeleton className="mt-1 h-5 w-5 rounded-md" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-4 w-1/3" />
+          <Skeleton className="h-3 w-2/3" />
+          <Skeleton className="h-3 w-1/4" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 const TaskManager: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -31,7 +98,8 @@ const TaskManager: React.FC = () => {
   const [tagFilter, setTagFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; taskId?: string }>({ isOpen: false });
-  
+  const reduceMotion = useReducedMotion();
+
   const {
     tasks,
     updateTask,
@@ -129,70 +197,144 @@ const TaskManager: React.FC = () => {
     }
   };
 
-  const TaskCard: React.FC<{ task: RecurringTaskInstance; showDate?: boolean }> = ({ task, showDate = false }) => {
+  const TaskCard: React.FC<{ task: RecurringTaskInstance; index: number; showDate?: boolean }> = ({ task, index, showDate = false }) => {
     const isCompleted = isOccurrenceCompleted(task);
     const displayDate = getOccurrenceDate(task);
-    const isOverdue = displayDate && new Date(displayDate + 'T00:00:00') < new Date() && !isCompleted;
+    // Date-only comparison: a task due today is not "overdue" just because
+    // part of today has already passed. Comparing displayDate's midnight
+    // against the current instant (the previous version) meant every
+    // still-open task due today rendered as overdue the moment the clock
+    // ticked past 00:00.
+    const isOverdue = displayDate && displayDate < formatDateLocal(new Date()) && !isCompleted;
+    const [burst, setBurst] = useState(false);
+    const rowRef = useRef<HTMLDivElement>(null);
+
+    // Physical drag-to-complete (right) / drag-to-delete (left) gesture. The
+    // card itself never actually leaves the list on drag - x always springs
+    // back to 0 (dragConstraints pins it to a single point); crossing the
+    // threshold just fires the same completion/delete flow the buttons use.
+    const x = useMotionValue(0);
+    const completeIconOpacity = useTransform(x, [0, 90], [0, 1]);
+    const deleteIconOpacity = useTransform(x, [-90, 0], [1, 0]);
+
+    const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      const width = rowRef.current?.offsetWidth || 320;
+      const threshold = width * 0.35;
+      if (info.offset.x > threshold) {
+        if (!isCompleted) setBurst(true);
+        handleToggleComplete(task);
+      } else if (info.offset.x < -threshold) {
+        handleDeleteTask(task.id);
+      }
+    };
 
     return (
-      <div className={`p-4 border rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-        isOverdue ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20' : 'border-gray-200 dark:border-gray-700'
-      }`}>
-        <div className="flex items-start justify-between">
-          <div className="flex items-start space-x-3 flex-1">
-            <button
-              onClick={() => handleToggleComplete(task)}
+      <motion.div
+        layout
+        initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={reduceMotion ? undefined : { opacity: 0, y: -6, scale: 0.97 }}
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1], delay: reduceMotion ? 0 : Math.min(index, 8) * 0.06 }}
+        className="relative"
+      >
+        {/* Drag affordance: check fades in as you drag right, trash as you drag left */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 flex items-center justify-between overflow-hidden rounded-lg px-6"
+        >
+          <motion.div style={{ opacity: deleteIconOpacity }} className="text-destructive">
+            <Trash2 className="h-5 w-5" strokeWidth={2} />
+          </motion.div>
+          <motion.div style={{ opacity: completeIconOpacity }} className="text-primary">
+            <Check className="h-5 w-5" strokeWidth={2} />
+          </motion.div>
+        </div>
+
+        <motion.div
+          ref={rowRef}
+          drag={reduceMotion ? false : 'x'}
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={1}
+          dragTransition={{ bounceStiffness: 300, bounceDamping: 30 }}
+          onDragEnd={handleDragEnd}
+          style={{ x, viewTransitionName: `task-row-${task.id}-${displayDate}` }}
+          whileHover={reduceMotion ? undefined : { y: -2 }}
+          className={cn(
+            'relative touch-pan-y rounded-lg border bg-card p-4 transition-colors hover:bg-accent/40',
+            !reduceMotion && 'cursor-grab active:cursor-grabbing',
+            isOverdue ? 'border-destructive/30 bg-destructive/5' : 'border-border'
+          )}
+        >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-1 items-start gap-3">
+            <motion.button
+              onClick={() => {
+                if (!isCompleted) setBurst(true);
+                handleToggleComplete(task);
+              }}
               disabled={isUpdating || isUpdatingInstance}
-              className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+              whileTap={reduceMotion ? undefined : { scale: 0.85 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className={cn(
+                'relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors',
                 isCompleted
-                  ? 'bg-black dark:bg-white border-black dark:border-white text-white dark:text-black'
-                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
-              }`}
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-input hover:border-primary/60'
+              )}
+              aria-label={isCompleted ? 'Mark task incomplete' : 'Mark task complete'}
             >
-              {isCompleted && <Check className="w-3 h-3" />}
-            </button>
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className={`font-medium ${isCompleted ? 'line-through text-gray-500 dark:text-gray-400' : 'text-black dark:text-white'}`}>
+              <CompletionBurst active={burst} onDone={() => setBurst(false)} />
+              <AnimatePresence>
+                {isCompleted && (
+                  <motion.span
+                    initial={reduceMotion ? false : { scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={reduceMotion ? undefined : { scale: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  >
+                    <Check className="h-3 w-3" strokeWidth={2.5} />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
+
+            <div className="min-w-0 flex-1">
+              <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                <h3 className={cn('font-medium', isCompleted ? 'text-muted-foreground line-through' : 'text-foreground')}>
                   {task.title}
                 </h3>
                 {task.repeat_type && task.repeat_type !== 'none' && (
-                  <Badge variant="secondary" className="text-xs">
+                  <Badge variant="secondary" className="text-xs font-normal">
                     {task.repeat_type}
                   </Badge>
                 )}
               </div>
-              
+
               {task.description && (
-                <p className={`text-sm mt-1 ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-400'}`}>
+                <p className={cn('mt-1 text-sm', isCompleted ? 'text-muted-foreground/70' : 'text-muted-foreground')}>
                   {task.description}
                 </p>
               )}
-              
-              <div className="flex items-center gap-3 mt-2 text-xs">
+
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
                 {(showDate && displayDate) && (
-                  <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 dark:text-red-400 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
-                    <Calendar className="w-3 h-3" />
+                  <span className={cn('flex items-center gap-1 tabular-nums', isOverdue ? 'font-medium text-destructive' : 'text-muted-foreground')}>
+                    <Calendar className="h-3 w-3" strokeWidth={2} />
                     {formatLocalDate(displayDate)}
                   </span>
                 )}
                 {task.due_time && (
-                  <span className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-                    <Clock className="w-3 h-3" />
+                  <span className="flex items-center gap-1 tabular-nums text-muted-foreground">
+                    <Clock className="h-3 w-3" strokeWidth={2} />
                     {task.due_time}
                   </span>
                 )}
-                <Badge variant="outline" className={`text-xs ${
-                  task.priority === 'high' ? 'border-red-200 text-red-700 dark:border-red-800 dark:text-red-300' :
-                  task.priority === 'medium' ? 'border-yellow-200 text-yellow-700 dark:border-yellow-800 dark:text-yellow-300' :
-                  'border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-300'
-                }`}>
+                <Badge variant="outline" className={cn('text-xs font-normal', PRIORITY_STYLES[task.priority])}>
                   {task.priority}
                 </Badge>
                 {task.tags && (
                   <Badge
-                    className="text-xs text-white"
+                    className="border-transparent text-xs font-normal text-white"
                     style={{ backgroundColor: task.tags.color }}
                   >
                     {task.tags.name}
@@ -201,7 +343,7 @@ const TaskManager: React.FC = () => {
                 {task.sync_error && (
                   <Badge
                     variant="outline"
-                    className="text-xs border-red-300 text-red-700 dark:border-red-800 dark:text-red-300"
+                    className="border-destructive/40 text-xs font-normal text-destructive"
                     title={task.sync_error}
                   >
                     Sync failed
@@ -210,33 +352,39 @@ const TaskManager: React.FC = () => {
               </div>
             </div>
           </div>
-          
-          <div className="flex items-center space-x-2 ml-4">
-            <button
+
+          <div className="ml-2 flex items-center gap-1">
+            <motion.button
               onClick={() => handleEditTask(task)}
-              className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              whileTap={reduceMotion ? undefined : { scale: 0.9 }}
+              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               title="Edit task"
+              aria-label="Edit task"
             >
-              <Edit className="w-4 h-4" />
-            </button>
-            <button
+              <Pencil className="h-4 w-4" strokeWidth={2} />
+            </motion.button>
+            <motion.button
               onClick={() => handleDeleteTask(task.id)}
               disabled={isDeleting}
-              className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              whileTap={reduceMotion ? undefined : { scale: 0.9 }}
+              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
               title="Delete task"
+              aria-label="Delete task"
             >
-              <Trash2 className="w-4 h-4" />
-            </button>
+              <Trash2 className="h-4 w-4" strokeWidth={2} />
+            </motion.button>
           </div>
         </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   };
 
   if (isLoading) {
     return (
-      <div className="p-4 sm:p-6 flex items-center justify-center">
-        <div className="text-gray-600 dark:text-gray-400">Loading tasks...</div>
+      <div className="space-y-6 p-4 sm:p-6">
+        <Skeleton className="h-8 w-48" />
+        <TaskListSkeleton />
       </div>
     );
   }
@@ -247,34 +395,33 @@ const TaskManager: React.FC = () => {
   const allTasks = filterTasks(tasks.map(asOccurrence));
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 p-4 sm:p-6">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-black dark:text-white">Task Manager</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            {tasks.length} total tasks, {tasks.filter(t => t.status === 'completed').length} completed
+          {/* TopBar already renders "Task Manager" as the page h1 - this
+              stat line is the actual new information for this view, so it
+              carries the weight instead of repeating the title. */}
+          <p className="text-base font-medium text-foreground">
+            <span className="tabular-nums">{tasks.length}</span> total tasks, <span className="tabular-nums">{tasks.filter(t => t.status === 'completed').length}</span> completed
           </p>
         </div>
-        <Button
-          onClick={handleAddNew}
-          className="bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200 w-full sm:w-auto"
-        >
-          <Plus className="w-4 h-4 mr-2" />
+        <Button onClick={handleAddNew} className="w-full sm:w-auto">
+          <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
           Add Task
         </Button>
       </div>
 
       {/* AI Quick Add */}
-      <div className="flex flex-col sm:flex-row gap-2 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+      <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 sm:flex-row">
         <div className="relative flex-1">
-          <Sparkles className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
+          <Sparkles className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" strokeWidth={2} />
           <Input
             placeholder="Try: lunch with Sam tomorrow 1pm, high priority"
             value={aiInput}
             onChange={(e) => setAiInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAiQuickAdd()}
             disabled={isParsing}
-            className="pl-10 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-black dark:text-white"
+            className="pl-10"
           />
         </div>
         <Button
@@ -283,42 +430,42 @@ const TaskManager: React.FC = () => {
           disabled={isParsing || !aiInput.trim()}
           className="w-full sm:w-auto"
         >
-          {isParsing ? 'Parsing...' : 'Quick Add with AI'}
+          {isParsing ? 'Parsing...' : 'Quick add with AI'}
         </Button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-        <div className="flex-1 min-w-0">
+      <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 sm:flex-row">
+        <div className="min-w-0 flex-1">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" strokeWidth={2} />
             <Input
               placeholder="Search tasks..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-black dark:text-white"
+              className="pl-10"
             />
           </div>
         </div>
-        
+
         <div className="flex flex-wrap gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-32 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-black dark:text-white">
+            <SelectTrigger className="w-32">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
-            <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <SelectItem value="all">All Status</SelectItem>
+            <SelectContent>
+              <SelectItem value="all">All status</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
             </SelectContent>
           </Select>
 
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-32 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-black dark:text-white">
+            <SelectTrigger className="w-32">
               <SelectValue placeholder="Priority" />
             </SelectTrigger>
-            <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <SelectItem value="all">All Priority</SelectItem>
+            <SelectContent>
+              <SelectItem value="all">All priority</SelectItem>
               <SelectItem value="high">High</SelectItem>
               <SelectItem value="medium">Medium</SelectItem>
               <SelectItem value="low">Low</SelectItem>
@@ -326,11 +473,11 @@ const TaskManager: React.FC = () => {
           </Select>
 
           <Select value={tagFilter} onValueChange={setTagFilter}>
-            <SelectTrigger className="w-32 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-black dark:text-white">
+            <SelectTrigger className="w-32">
               <SelectValue placeholder="Tag" />
             </SelectTrigger>
-            <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <SelectItem value="all">All Tags</SelectItem>
+            <SelectContent>
+              <SelectItem value="all">All tags</SelectItem>
               {tags.map(tag => (
                 <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
               ))}
@@ -342,57 +489,77 @@ const TaskManager: React.FC = () => {
       {/* Task Tabs */}
       <Tabs defaultValue="today" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="today">Today ({todayTasks.length})</TabsTrigger>
-          <TabsTrigger value="upcoming">Upcoming ({upcomingTasks.length})</TabsTrigger>
-          <TabsTrigger value="overdue">Overdue ({overdueTasks.length})</TabsTrigger>
-          <TabsTrigger value="all">All ({allTasks.length})</TabsTrigger>
+          <TabsTrigger value="today">Today <span className="ml-1 tabular-nums">({todayTasks.length})</span></TabsTrigger>
+          <TabsTrigger value="upcoming">Upcoming <span className="ml-1 tabular-nums">({upcomingTasks.length})</span></TabsTrigger>
+          <TabsTrigger value="overdue">Overdue <span className="ml-1 tabular-nums">({overdueTasks.length})</span></TabsTrigger>
+          <TabsTrigger value="all">All <span className="ml-1 tabular-nums">({allTasks.length})</span></TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="today" className="space-y-3 mt-6">
+
+        <TabsContent value="today" className="mt-6 space-y-3">
           {todayTasks.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400 mb-4">No tasks for today</p>
-              <Button onClick={handleAddNew} variant="outline">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Your First Task
-              </Button>
-            </div>
+            <EmptyState
+              icon={<ListTodo className="h-6 w-6" strokeWidth={2} />}
+              title="No tasks for today"
+              description="Your day is clear. Add a task to get started."
+              cta={
+                <Button onClick={handleAddNew} variant="outline">
+                  <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
+                  Add your first task
+                </Button>
+              }
+            />
           ) : (
-            todayTasks.map(task => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} />)
+            <AnimatePresence initial={false}>
+              {todayTasks.map((task, i) => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} index={i} />)}
+            </AnimatePresence>
           )}
         </TabsContent>
-        
-        <TabsContent value="upcoming" className="space-y-3 mt-6">
+
+        <TabsContent value="upcoming" className="mt-6 space-y-3">
           {upcomingTasks.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400">No upcoming tasks</p>
-            </div>
+            <EmptyState
+              icon={<CalendarClock className="h-6 w-6" strokeWidth={2} />}
+              title="No upcoming tasks"
+              description="Nothing scheduled for the days ahead."
+            />
           ) : (
-            upcomingTasks.map(task => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} showDate />)
+            <AnimatePresence initial={false}>
+              {upcomingTasks.map((task, i) => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} index={i} showDate />)}
+            </AnimatePresence>
           )}
         </TabsContent>
-        
-        <TabsContent value="overdue" className="space-y-3 mt-6">
+
+        <TabsContent value="overdue" className="mt-6 space-y-3">
           {overdueTasks.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400">No overdue tasks</p>
-            </div>
+            <EmptyState
+              icon={<AlarmClock className="h-6 w-6" strokeWidth={2} />}
+              title="No overdue tasks"
+              description="You're all caught up."
+            />
           ) : (
-            overdueTasks.map(task => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} showDate />)
+            <AnimatePresence initial={false}>
+              {overdueTasks.map((task, i) => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} index={i} showDate />)}
+            </AnimatePresence>
           )}
         </TabsContent>
-        
-        <TabsContent value="all" className="space-y-3 mt-6">
+
+        <TabsContent value="all" className="mt-6 space-y-3">
           {allTasks.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400 mb-4">No tasks found</p>
-              <Button onClick={handleAddNew} variant="outline">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Your First Task
-              </Button>
-            </div>
+            <EmptyState
+              icon={<ListChecks className="h-6 w-6" strokeWidth={2} />}
+              title="No tasks found"
+              description="Create a task, or adjust your filters to see more."
+              cta={
+                <Button onClick={handleAddNew} variant="outline">
+                  <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
+                  Add your first task
+                </Button>
+              }
+            />
           ) : (
-            allTasks.map(task => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} showDate />)
+            <AnimatePresence initial={false}>
+              {allTasks.map((task, i) => <TaskCard key={`${task.id}-${getOccurrenceDate(task)}`} task={task} index={i} showDate />)}
+            </AnimatePresence>
           )}
         </TabsContent>
       </Tabs>

@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 interface TimeInputProps {
   value: string;
@@ -9,9 +10,9 @@ interface TimeInputProps {
   placeholder?: string;
 }
 
-const TimeInput: React.FC<TimeInputProps> = ({ 
-  value, 
-  onChange, 
+const TimeInput: React.FC<TimeInputProps> = ({
+  value,
+  onChange,
   className = "",
   placeholder = "Select time"
 }) => {
@@ -20,7 +21,7 @@ const TimeInput: React.FC<TimeInputProps> = ({
       type="time"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-black dark:text-white ${className}`}
+      className={cn('tabular-nums transition-shadow duration-200 focus-visible:shadow-[0_0_0_3px_hsl(var(--primary)/0.15)]', className)}
       placeholder={placeholder}
     />
   );

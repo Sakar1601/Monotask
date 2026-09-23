@@ -169,9 +169,9 @@ export const useHabits = () => {
   const logHabitMutation = useMutation({
     mutationFn: async ({ habitId, status, notes }: { habitId: string; status: 'completed' | 'skipped' | 'failed'; notes?: string }) => {
       if (!user) throw new Error('User not authenticated');
-      
+
       const today = new Date().toISOString().split('T')[0];
-      
+
       // Check if log already exists for today
       const { data: existingLog } = await supabase
         .from('logs')
@@ -196,12 +196,12 @@ export const useHabits = () => {
         // Create new log
         const { data, error } = await supabase
           .from('logs')
-          .insert([{ 
+          .insert([{
             user_id: user.id,
             habit_id: habitId,
             date: today,
             status,
-            notes 
+            notes
           }])
           .select()
           .single();
@@ -210,12 +210,41 @@ export const useHabits = () => {
         return data;
       }
     },
+    onMutate: async ({ habitId, status, notes }) => {
+      await queryClient.cancelQueries({ queryKey: ['habit-logs', user?.id] });
+
+      const previousLogs = queryClient.getQueryData<HabitLog[]>(['habit-logs', user?.id]);
+      const today = new Date().toISOString().split('T')[0];
+
+      queryClient.setQueryData<HabitLog[]>(['habit-logs', user?.id], (old = []) => {
+        const existingIndex = old.findIndex(log => log.habit_id === habitId && log.date === today);
+        if (existingIndex >= 0) {
+          const updated = [...old];
+          updated[existingIndex] = { ...updated[existingIndex], status, notes };
+          return updated;
+        }
+        const optimisticLog: HabitLog = {
+          id: `optimistic-${habitId}-${today}`,
+          habit_id: habitId,
+          date: today,
+          status,
+          notes,
+          created_at: new Date().toISOString(),
+          user_id: user?.id ?? '',
+        };
+        return [optimisticLog, ...old];
+      });
+
+      return { previousLogs };
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['habit-logs'] });
-      toast.success('Habit logged successfully');
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
       console.error('Habit logging failed:', error);
+      if (context?.previousLogs) {
+        queryClient.setQueryData(['habit-logs', user?.id], context.previousLogs);
+      }
       toast.error('Failed to log habit');
     },
   });

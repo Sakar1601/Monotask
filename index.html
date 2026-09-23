@@ -8,10 +8,10 @@
     <meta name="description" content="A minimal, monochrome productivity system combining tasks, calendar, habits, and analytics" />
     <meta name="author" content="Monotask" />
     
-    <!-- Google Fonts - Inter for clean, minimal typography -->
+    <!-- Google Fonts - Geist (body) + Space Grotesk (display) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <meta property="og:title" content="Monotask - Minimal Productivity Suite" />
     <meta property="og:description" content="A minimal, monochrome productivity system combining tasks, calendar, habits, and analytics" />
@@ -23,6 +23,20 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@monotask_app" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <!-- Applies the dark class before first paint so dark-by-default doesn't
+         flash light for a frame while React mounts and useSettings/the
+         landing ThemeToggle catch up. Mirrors the same stored-key/fallback
+         logic those two use, so all three stay in agreement. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('monotask-landing-theme');
+          var dark = stored ? stored === 'dark' : true;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
 
   <body>

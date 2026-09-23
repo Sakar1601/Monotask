@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import { Moon, Sun, Download, Upload, UserPlus, LogOut } from 'lucide-react';
+import { motion, useMotionValue, useMotionTemplate, useReducedMotion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
 import { useSettings } from '@/hooks/useSettings';
 import { useTasks } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
@@ -15,6 +19,46 @@ import UpgradeAccountModal from './UpgradeAccountModal';
 import IntegrationsSettings from './IntegrationsSettings';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
+const SECTION_TRANSITION = { type: 'spring' as const, stiffness: 100, damping: 20 };
+
+/** Wraps a Card with a cursor-reactive spotlight glow, restricted to hover (an elevated-surface cue, not a gimmick). */
+const SpotlightSection: React.FC<{ children: React.ReactNode; index: number; shouldReduceMotion: boolean }> = ({
+  children,
+  index,
+  shouldReduceMotion,
+}) => {
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const background = useMotionTemplate`radial-gradient(360px circle at ${mouseX}px ${mouseY}px, hsl(var(--brand) / 0.12), transparent 65%)`;
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (shouldReduceMotion) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    mouseX.set(e.clientX - rect.left);
+    mouseY.set(e.clientY - rect.top);
+  };
+
+  return (
+    <motion.div
+      initial={shouldReduceMotion ? undefined : { opacity: 0, y: 12 }}
+      whileInView={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-40px' }}
+      transition={{ ...SECTION_TRANSITION, delay: Math.min(index * 0.06, 0.24) }}
+      onMouseMove={handleMouseMove}
+      className="group relative rounded-lg"
+    >
+      {!shouldReduceMotion && (
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute -inset-px rounded-lg opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+          style={{ background }}
+        />
+      )}
+      {children}
+    </motion.div>
+  );
+};
+
 const Settings: React.FC = () => {
   const { settings, updateSetting } = useSettings();
   const { tasks, createTaskAsync, isLoading: tasksLoading } = useTasks();
@@ -22,6 +66,7 @@ const Settings: React.FC = () => {
   const { tags, createTagAsync, isLoading: tagsLoading } = useTags();
   const { events, isLoading: eventsLoading } = useEvents();
   const { user, isAnonymous, signOut } = useAuth();
+  const shouldReduceMotion = !!useReducedMotion();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   // Export/import must never run against tasks/habits/tags that haven't
@@ -199,26 +244,26 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-1">Customize your Monotask experience</p>
+        {/* TopBar already renders "Settings" as the page h1. */}
+        <p className="text-base font-medium text-foreground">Customize your Monotask experience</p>
       </div>
 
       {/* Guest Account Alert */}
       {isAnonymous && (
-        <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
-          <UserPlus className="h-4 w-4 text-amber-600" />
+        <Alert className="border-brand/30 bg-brand/5">
+          <UserPlus className="h-4 w-4 text-brand" />
           <AlertDescription className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <span className="text-amber-800 dark:text-amber-200">
+            <span className="text-foreground">
               You're using a guest account. Create a full account to save your data permanently.
             </span>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={() => setShowUpgradeModal(true)}
-              className="bg-amber-600 hover:bg-amber-700 text-white w-fit"
+              className="w-fit"
             >
-              <UserPlus className="w-4 h-4 mr-2" />
+              <UserPlus className="w-4 h-4 mr-2" strokeWidth={2} />
               Create Account
             </Button>
           </AlertDescription>
@@ -226,85 +271,94 @@ const Settings: React.FC = () => {
       )}
 
       {/* Account Section */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Account</h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
+      <SpotlightSection index={0} shouldReduceMotion={shouldReduceMotion}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Account</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-medium text-foreground">
                 {isAnonymous ? 'Guest Account' : 'Email'}
               </h3>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground break-all">
                 {isAnonymous ? 'No email linked' : user?.email}
               </p>
             </div>
             {isAnonymous && (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowUpgradeModal(true)}
+                className="shrink-0"
               >
-                <UserPlus className="w-4 h-4 mr-2" />
+                <UserPlus className="w-4 h-4 mr-2" strokeWidth={2} />
                 Upgrade
               </Button>
             )}
           </div>
-          <div className="flex items-center justify-between pt-2 border-t border-border">
+          <Separator />
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-medium text-foreground">Sign Out</h3>
               <p className="text-sm text-muted-foreground">
-                {isAnonymous ? 'Warning: Guest data will be lost' : 'Sign out of your account'}
+                {isAnonymous ? 'Warning: guest data will be lost' : 'Sign out of your account'}
               </p>
             </div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={signOut}
-              className="text-destructive hover:bg-destructive/10"
+              className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
-              <LogOut className="w-4 h-4 mr-2" />
+              <LogOut className="w-4 h-4 mr-2" strokeWidth={2} />
               Sign Out
             </Button>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
+      </SpotlightSection>
 
       {/* Theme Settings */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Appearance</h2>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-medium text-foreground">Dark Mode</h3>
-            <p className="text-sm text-muted-foreground">Switch between light and dark themes</p>
-          </div>
-          <button
-            onClick={handleToggleDarkMode}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-              settings?.theme === 'dark' ? 'bg-primary' : 'bg-muted'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
-                settings?.theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            >
+      <SpotlightSection index={1} shouldReduceMotion={shouldReduceMotion}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Appearance</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               {settings?.theme === 'dark' ? (
-                <Moon className="h-3 w-3 m-0.5 text-foreground" />
+                <Moon className="h-4 w-4 text-muted-foreground" strokeWidth={2} />
               ) : (
-                <Sun className="h-3 w-3 m-0.5 text-foreground" />
+                <Sun className="h-4 w-4 text-muted-foreground" strokeWidth={2} />
               )}
-            </span>
-          </button>
-        </div>
-      </div>
+              <div>
+                <h3 className="font-medium text-foreground">Dark Mode</h3>
+                <p className="text-sm text-muted-foreground">Switch between light and dark themes</p>
+              </div>
+            </div>
+            <Switch
+              checked={settings?.theme === 'dark'}
+              onCheckedChange={handleToggleDarkMode}
+              aria-label="Toggle dark mode"
+            />
+          </div>
+        </CardContent>
+      </Card>
+      </SpotlightSection>
 
       {/* Integrations */}
-      <IntegrationsSettings />
+      <SpotlightSection index={2} shouldReduceMotion={shouldReduceMotion}>
+        <IntegrationsSettings />
+      </SpotlightSection>
 
       {/* Data Management */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-6">Data Management</h2>
-        
-        <div className="space-y-4">
+      <SpotlightSection index={3} shouldReduceMotion={shouldReduceMotion}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Data Management</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
           <div>
             <h3 className="font-medium text-foreground mb-2">Export Data</h3>
             <p className="text-sm text-muted-foreground mb-4">Download your tasks and habits data</p>
@@ -313,7 +367,7 @@ const Settings: React.FC = () => {
                 onClick={handleExportPDF}
                 disabled={!dataReady}
               >
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="w-4 h-4 mr-2" strokeWidth={2} />
                 Export as PDF
               </Button>
               <Button
@@ -321,7 +375,7 @@ const Settings: React.FC = () => {
                 variant="outline"
                 disabled={!dataReady}
               >
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="w-4 h-4 mr-2" strokeWidth={2} />
                 Export as CSV
               </Button>
               <Button
@@ -329,11 +383,13 @@ const Settings: React.FC = () => {
                 variant="outline"
                 disabled={!dataReady}
               >
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="w-4 h-4 mr-2" strokeWidth={2} />
                 Export as JSON
               </Button>
             </div>
           </div>
+
+          <Separator />
 
           <div>
             <h3 className="font-medium text-foreground mb-2">Import Data</h3>
@@ -355,7 +411,7 @@ const Settings: React.FC = () => {
                   asChild
                 >
                   <span>
-                    <Upload className="w-4 h-4 mr-2" />
+                    <Upload className="w-4 h-4 mr-2" strokeWidth={2} />
                     {isImporting ? 'Importing...' : 'Import Data'}
                   </span>
                 </Button>
@@ -365,23 +421,28 @@ const Settings: React.FC = () => {
               Only accepts JSON files exported from Monotask above. Habit completion history isn't included.
             </p>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
+      </SpotlightSection>
 
       {/* App Information */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">About</h2>
-        <div className="space-y-2 text-sm text-muted-foreground">
-          <p><strong className="text-foreground">App:</strong> Monotask</p>
-          <p><strong className="text-foreground">Version:</strong> 1.0.0</p>
-          <p><strong className="text-foreground">Description:</strong> Minimal productivity app for managing tasks and habits</p>
-        </div>
-      </div>
+      <SpotlightSection index={4} shouldReduceMotion={shouldReduceMotion}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">About</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p><span className="text-foreground font-medium">App:</span> Monotask</p>
+          <p><span className="text-foreground font-medium">Version:</span> <span className="font-mono tabular-nums">1.0.0</span></p>
+          <p><span className="text-foreground font-medium">Description:</span> Minimal productivity app for managing tasks and habits</p>
+        </CardContent>
+      </Card>
+      </SpotlightSection>
 
       {/* Upgrade Account Modal */}
-      <UpgradeAccountModal 
-        open={showUpgradeModal} 
-        onOpenChange={setShowUpgradeModal} 
+      <UpgradeAccountModal
+        open={showUpgradeModal}
+        onOpenChange={setShowUpgradeModal}
       />
     </div>
   );

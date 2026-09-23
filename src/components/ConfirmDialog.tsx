@@ -1,5 +1,7 @@
 
 import React from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import { AlertTriangle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +34,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelText = 'Cancel',
   variant = 'default'
 }) => {
+  const reduceMotion = useReducedMotion();
+
   const handleConfirm = () => {
     onConfirm();
     onClose();
@@ -39,25 +43,32 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
-      <AlertDialogContent className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+      <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-black dark:text-white">{title}</AlertDialogTitle>
-          <AlertDialogDescription className="text-gray-600 dark:text-gray-400">
+          {variant === 'destructive' && (
+            <motion.div
+              initial={reduceMotion ? false : { scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+              className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive sm:mx-0"
+            >
+              <AlertTriangle className="h-5 w-5" strokeWidth={2} />
+            </motion.div>
+          )}
+          <AlertDialogTitle className="font-grotesk">{title}</AlertDialogTitle>
+          <AlertDialogDescription>
             {message}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel 
-            onClick={onClose}
-            className="border-gray-300 dark:border-gray-700 text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
-          >
+          <AlertDialogCancel onClick={onClose}>
             {cancelText}
           </AlertDialogCancel>
-          <AlertDialogAction 
+          <AlertDialogAction
             onClick={handleConfirm}
-            className={variant === 'destructive' 
-              ? 'bg-red-600 hover:bg-red-700 text-white' 
-              : 'bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200'
+            className={variant === 'destructive'
+              ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              : ''
             }
           >
             {confirmText}

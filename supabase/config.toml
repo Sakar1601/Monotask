@@ -8,6 +8,7 @@ project_id = "masofmjpnpnxjooqdajl"
 [auth]
 site_url = "http://localhost:8080"
 additional_redirect_urls = ["http://localhost:8080", "http://localhost:8081", "http://127.0.0.1:8080", "http://127.0.0.1:8081"]
+enable_anonymous_sign_ins = true
 
 # Platform-level JWT verification runs even on CORS preflight (OPTIONS)
 # requests, which never carry an Authorization header - that blocks the
