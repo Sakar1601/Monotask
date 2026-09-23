@@ -26,6 +26,7 @@ dist-ssr
 
 # Supabase CLI local cache
 supabase/.temp/
+supabase/.branches/
 
 # graphify local artifacts
 graphify-out/
@@ -40,3 +41,9 @@ DEMO_CREDENTIALS.md
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# Design-review skill artifacts (regenerable, tool-specific)
+.impeccable/
+
+# Git worktrees checked out alongside the repo
+.worktrees/
