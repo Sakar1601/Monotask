@@ -1,4 +1,5 @@
 
+import { quoteForDate } from '@/utils/dailyQuote';
 import React from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Calendar, CheckCircle2, Target, TrendingUp, AlertTriangle, Sparkles } from 'lucide-react';
@@ -172,6 +173,9 @@ const Dashboard: React.FC = () => {
       >
         <h1 className="font-grotesk text-2xl font-bold text-foreground">Good morning</h1>
         <p className="mt-1 text-muted-foreground">Here's what's happening with your tasks today.</p>
+        <p className="mt-3 border-l-2 border-foreground/40 pl-3 font-grotesk text-base font-medium text-foreground/85">
+          {quoteForDate()}
+        </p>
       </motion.div>
 
       {/* Stats Grid */}
