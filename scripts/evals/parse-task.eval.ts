@@ -130,7 +130,7 @@ async function runCase(client: Anthropic, testCase: EvalCase) {
   });
 
   const textBlock = response.content.find((b) => b.type === 'text');
-  let parsed: ParsedTask | null = null;
+  let parsed: ParsedTask | null;
   try {
     parsed = textBlock?.text ? JSON.parse(textBlock.text) : null;
   } catch {
