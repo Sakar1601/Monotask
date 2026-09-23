@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   findOverlappingPairs,
+  findOverlappingPairsWithinBudget,
   isValidRescheduleSuggestion,
   type EventForConflictCheck,
 } from '../../supabase/functions/detect-conflicts/conflicts.ts';
@@ -64,6 +65,32 @@ describe('findOverlappingPairs', () => {
       event('c', '2026-09-15T10:30:00Z', '2026-09-15T11:30:00Z'),
     ]);
     expect(pairs).toHaveLength(3);
+  });
+
+  it('stops materializing overlaps at a caller-supplied pair budget', () => {
+    const events = Array.from({ length: 100 }, (_, index) =>
+      event(
+        `event-${index}`,
+        '2026-09-15T09:00:00Z',
+        '2026-09-15T17:00:00Z',
+      ),
+    );
+
+    const result = findOverlappingPairsWithinBudget(events, 25);
+
+    expect(result.pairs).toHaveLength(25);
+    expect(result.truncated).toBe(true);
+  });
+
+  it('reports complete coverage when overlap count stays within budget', () => {
+    const result = findOverlappingPairsWithinBudget([
+      event('a', '2026-09-15T09:00:00Z', '2026-09-15T11:00:00Z'),
+      event('b', '2026-09-15T10:00:00Z', '2026-09-15T12:00:00Z'),
+      event('c', '2026-09-15T13:00:00Z', '2026-09-15T14:00:00Z'),
+    ], 10);
+
+    expect(result.pairs.map((pair) => [pair.eventA.id, pair.eventB.id])).toEqual([['a', 'b']]);
+    expect(result.truncated).toBe(false);
   });
 });
 

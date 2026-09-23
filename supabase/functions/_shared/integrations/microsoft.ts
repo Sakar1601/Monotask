@@ -1,4 +1,5 @@
-import type { EventChanges, ExternalEvent, ExternalMessage, ExternalTask, IntegrationProvider, TaskChanges, TokenSet } from "./types.ts";
+import type { EventChanges, ExternalEvent, ExternalMessage, ExternalTask, IntegrationProvider, ProviderSnapshot, TaskChanges, TokenSet } from "./types.ts";
+import { providerHttpError } from "./providerErrors.ts";
 
 // User.Read is a default permission on every app registration, but that
 // only means Azure lets an app request it without extra admin consent -
@@ -191,7 +192,7 @@ export const microsoftProvider: IntegrationProvider = {
         grant_type: "authorization_code",
       }),
     });
-    if (!response.ok) throw new Error(`Microsoft token exchange failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw providerHttpError("Microsoft", "token exchange", response);
     return tokenSetFromResponse(await response.json());
   },
 
@@ -211,11 +212,11 @@ export const microsoftProvider: IntegrationProvider = {
         // breaking that feature ~hourly once the token first refreshes.
       }),
     });
-    if (!response.ok) throw new Error(`Microsoft token refresh failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw providerHttpError("Microsoft", "token refresh", response);
     return tokenSetFromResponse(await response.json(), refreshToken);
   },
 
-  async fetchEvents(accessToken: string, windowStart: Date, windowEnd: Date): Promise<ExternalEvent[]> {
+  async fetchEvents(accessToken: string, windowStart: Date, windowEnd: Date): Promise<ProviderSnapshot<ExternalEvent>> {
     const params = new URLSearchParams({
       startDateTime: windowStart.toISOString(),
       endDateTime: windowEnd.toISOString(),
@@ -228,27 +229,27 @@ export const microsoftProvider: IntegrationProvider = {
     const MAX_PAGES = 20; // matches google.ts's page-count ceiling pattern
     while (url && pageCount < MAX_PAGES) {
       const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-      if (!response.ok) throw new Error(`Microsoft calendar fetch failed: ${response.status} ${await response.text()}`);
+      if (!response.ok) throw providerHttpError("Microsoft", "calendar fetch", response);
       const json = await response.json() as { value?: GraphEventPayload[]; "@odata.nextLink"?: string };
       events.push(...(json.value ?? []).map(mapMicrosoftEvent).filter((e): e is ExternalEvent => e !== null));
       url = json["@odata.nextLink"];
       pageCount++;
     }
-    return events;
+    return { items: events, complete: !url };
   },
 
   async resolveProviderMetadata(accessToken: string): Promise<Record<string, unknown>> {
     const response = await fetch(`${GRAPH_BASE}/me/todo/lists`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!response.ok) throw new Error(`Microsoft To Do lists fetch failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw providerHttpError("Microsoft", "To Do lists fetch", response);
     const json = await response.json() as { value?: GraphTaskList[] };
     const defaultList = (json.value ?? []).find((list) => list.wellknownListName === "defaultList");
     if (!defaultList) throw new Error("Could not find Microsoft To Do's default task list");
     return { taskListId: defaultList.id };
   },
 
-  async fetchTasks(accessToken: string, _completedMin: Date, providerMetadata?: Record<string, unknown> | null): Promise<ExternalTask[]> {
+  async fetchTasks(accessToken: string, _completedMin: Date, providerMetadata?: Record<string, unknown> | null): Promise<ProviderSnapshot<ExternalTask>> {
     const taskListId = requireTaskListId(providerMetadata);
     const params = new URLSearchParams({ $top: "100" });
     const tasks: ExternalTask[] = [];
@@ -257,13 +258,13 @@ export const microsoftProvider: IntegrationProvider = {
     const MAX_PAGES = 20; // 20 * 100 = 2,000 tasks/run ceiling, matches google.ts
     while (url && pageCount < MAX_PAGES) {
       const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-      if (!response.ok) throw new Error(`Microsoft tasks fetch failed: ${response.status} ${await response.text()}`);
+      if (!response.ok) throw providerHttpError("Microsoft", "tasks fetch", response);
       const json = await response.json() as { value?: GraphTaskPayload[]; "@odata.nextLink"?: string };
       tasks.push(...(json.value ?? []).map(mapMicrosoftTask).filter((t): t is ExternalTask => t !== null));
       url = json["@odata.nextLink"];
       pageCount++;
     }
-    return tasks;
+    return { items: tasks, complete: !url };
   },
 
   async updateEvent(accessToken: string, externalEventId: string, changes: EventChanges): Promise<void> {
@@ -281,7 +282,7 @@ export const microsoftProvider: IntegrationProvider = {
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!response.ok) throw new Error(`Microsoft event update failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw providerHttpError("Microsoft", "event update", response);
   },
 
   async deleteEvent(accessToken: string, externalEventId: string): Promise<void> {
@@ -293,7 +294,7 @@ export const microsoftProvider: IntegrationProvider = {
     // treat that the same as success, since the end state (gone) matches
     // (Google's equivalent is a 410; Graph doesn't use 410 for this case).
     if (!response.ok && response.status !== 404) {
-      throw new Error(`Microsoft event delete failed: ${response.status} ${await response.text()}`);
+      throw providerHttpError("Microsoft", "event delete", response);
     }
   },
 
@@ -314,7 +315,7 @@ export const microsoftProvider: IntegrationProvider = {
         body: JSON.stringify(body),
       },
     );
-    if (!response.ok) throw new Error(`Microsoft task update failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw providerHttpError("Microsoft", "task update", response);
   },
 
   async deleteTask(accessToken: string, externalTaskId: string, providerMetadata?: Record<string, unknown> | null): Promise<void> {
@@ -324,7 +325,7 @@ export const microsoftProvider: IntegrationProvider = {
       { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } },
     );
     if (!response.ok && response.status !== 404) {
-      throw new Error(`Microsoft task delete failed: ${response.status} ${await response.text()}`);
+      throw providerHttpError("Microsoft", "task delete", response);
     }
   },
 
@@ -335,7 +336,7 @@ export const microsoftProvider: IntegrationProvider = {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!response.ok) {
-      console.error(`Microsoft getAccountEmail failed: ${response.status} ${await response.text()}`);
+      console.error(providerHttpError("Microsoft", "getAccountEmail", response).message);
       return null;
     }
     const json = await response.json() as { mail?: string; userPrincipalName?: string };
@@ -356,7 +357,7 @@ export const microsoftProvider: IntegrationProvider = {
     const MAX_PAGES = 5; // matches google.ts's message-scanning ceiling
     while (url && pageCount < MAX_PAGES) {
       const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-      if (!response.ok) throw new Error(`Outlook mail fetch failed: ${response.status} ${await response.text()}`);
+      if (!response.ok) throw providerHttpError("Outlook", "mail fetch", response);
       const json = await response.json() as { value?: GraphMailMessage[]; "@odata.nextLink"?: string };
       messages.push(...(json.value ?? []).map(mapOutlookMessage).filter((m): m is ExternalMessage => m !== null));
       url = json["@odata.nextLink"];
@@ -376,7 +377,7 @@ export const microsoftProvider: IntegrationProvider = {
     const MAX_PAGES = 5;
     while (url && pageCount < MAX_PAGES) {
       const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-      if (!response.ok) throw new Error(`Teams chat fetch failed: ${response.status} ${await response.text()}`);
+      if (!response.ok) throw providerHttpError("Teams", "chat fetch", response);
       const json = await response.json() as { value?: GraphChatMessage[]; "@odata.nextLink"?: string };
       messages.push(...(json.value ?? []).map(mapTeamsChatMessage).filter((m): m is ExternalMessage => m !== null));
       url = json["@odata.nextLink"];
