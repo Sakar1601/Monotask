@@ -43,6 +43,25 @@ The AI features (Quick Add, Weekly Summary) require the two Edge Functions
 To try the app pre-populated with data instead of starting from an empty account, run
 `npm run seed:demo` (requires the Supabase `service_role` key - never committed).
 
+## Deploying to a new environment
+
+Each Supabase environment (a fresh project, or reusing these migrations elsewhere) needs setup
+beyond `supabase db push`, since none of this can live in source control:
+
+1. **Edge Function secrets** (`supabase secrets set`): `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`,
+   `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET`, `APP_ORIGIN` (your deployed app's exact HTTPS origin),
+   `OAUTH_CALLBACK_URL` (`<SUPABASE_URL>/functions/v1/integration-oauth-callback`).
+2. **Two Vault secrets**, run once via the SQL editor or `supabase db query --file` - the scheduled
+   sync/scan/conflict-detection cron jobs read these at call time rather than having any
+   environment-specific value committed to a migration:
+   ```sql
+   select vault.create_secret('<service-role-key>', 'service_role_key');
+   select vault.create_secret('https://<your-project-ref>.supabase.co', 'functions_base_url');
+   ```
+3. Enable **Anonymous sign-ins** in Supabase Auth settings (guest access).
+4. Register `<SUPABASE_URL>/functions/v1/integration-oauth-callback` as an authorized redirect URI
+   in both the Google Cloud Console and Azure App registration for the OAuth client IDs above.
+
 ## Testing
 
 ```bash
