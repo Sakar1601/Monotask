@@ -47,9 +47,7 @@ export const useTasks = () => {
     queryKey: ['tasks', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      
-      console.log('Fetching tasks for user:', user.id);
-      
+
       const { data, error } = await supabase
         .from('tasks')
         .select(`
@@ -63,8 +61,7 @@ export const useTasks = () => {
         console.error('Error fetching tasks:', error);
         throw error;
       }
-      
-      console.log('Fetched tasks:', data);
+
       return data as Task[];
     },
     enabled: !!user,
@@ -73,9 +70,7 @@ export const useTasks = () => {
   const createTaskMutation = useMutation({
     mutationFn: async (taskData: Omit<Task, 'id' | 'created_at' | 'updated_at' | 'tags' | 'user_id'>) => {
       if (!user) throw new Error('User not authenticated');
-      
-      console.log('Creating task with data:', taskData);
-      
+
       const processedTaskData = {
         ...taskData,
         due_date: taskData.due_date ? taskData.due_date : null,
@@ -97,13 +92,10 @@ export const useTasks = () => {
         console.error('Error creating task:', error);
         throw error;
       }
-      
-      console.log('Created task:', data);
+
       return data as Task;
     },
     onSuccess: (newTask) => {
-      console.log('Task created successfully, updating cache');
-      
       // Immediately update the cache with the new task
       queryClient.setQueryData(['tasks', user?.id], (oldTasks: Task[] = []) => {
         return [newTask, ...oldTasks];
