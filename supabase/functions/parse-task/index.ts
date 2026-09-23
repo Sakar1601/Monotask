@@ -114,6 +114,17 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Anonymous sign-in is enabled and free to mint repeatedly with no
+    // friction, so a per-user quota alone doesn't bound spend for these
+    // accounts - an attacker just creates a fresh one every 30 calls.
+    // Real accounts (email/password or Google) have actual signup
+    // friction, so the quota is meaningful for them.
+    if (user.is_anonymous) {
+      return new Response(
+        JSON.stringify({ error: "Create a free account to use AI Quick Add." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const { data: allowed, error: rateLimitError } = await supabase.rpc(
       "check_and_increment_ai_usage",
