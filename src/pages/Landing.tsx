@@ -8,6 +8,7 @@ import {
   Check,
   Target,
   LineChart,
+  Focus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MagneticButton } from '@/components/landing/MagneticButton';
@@ -79,6 +80,15 @@ const Landing = () => {
         viewport: { once: true, margin: '-80px' },
         transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as const },
       };
+
+  // Words for the manifesto section's stagger reveal, with an explicit
+  // line-break marker where the sentence wraps.
+  const manifestoLine = [
+    { text: 'Most' }, { text: 'tools' }, { text: 'compete' }, { text: 'for' },
+    { text: 'your' }, { text: 'attention.' },
+    { text: 'Monotask', break: true }, { text: 'gets' }, { text: 'out' },
+    { text: 'of' }, { text: 'the' }, { text: 'way' }, { text: 'instead.' },
+  ];
 
   // A second entrance flavor for sections that read better as a settle-in
   // than a slide-up (the sync diagram is a centered object, not a list),
@@ -245,6 +255,61 @@ const Landing = () => {
               <HeroDemo />
             </TiltCard>
           </motion.div>
+        </div>
+      </section>
+
+      {/* Manifesto: a centered, large-type statement with nothing else on
+          it - a layout family used nowhere else on this page (every other
+          section pairs copy with a real demo, diagram, or chart). Adapted
+          from a Stitch-generated concept that framed this as a customer
+          quote with fabricated numbers around it ("32,419 sessions this
+          week", "30,000 users") - rejected that: it's the app's own
+          positioning stated plainly, not attributed to anyone, and it
+          stays on the page's locked dark theme throughout (the Stitch
+          version sandwiched a white CTA block right after this, which
+          breaks the Page Theme Lock rule in DESIGN.md - not carried over).
+          Reads as too empty at rest, so the section carries its own quiet
+          ambient glow (same ramp used in the hero, just re-centered) and
+          the line reveals word by word on scroll instead of fading in as
+          one block. It also now takes a border-t and a short eyebrow label,
+          the same anatomy every other section on the page uses (eyebrow +
+          statement), instead of floating as an unbounded slab of black
+          between the hero and the AI section - that lack of a frame, not
+          the motion, was what read as an accidental gap rather than an
+          intentional beat. Padding is also pulled in from py-32 so it
+          doesn't compound with the hero's own centered slack above it. */}
+      <section className="relative py-20 sm:py-24 px-4 sm:px-6 lg:px-8 overflow-hidden border-t border-border">
+        <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center" aria-hidden>
+          <motion.div
+            animate={prefersReducedMotion ? undefined : { scale: [1, 1.08, 1], opacity: [0.6, 1, 0.6] }}
+            transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+            className="w-[24rem] h-[24rem] bg-foreground/[0.05] rounded-full blur-3xl"
+          />
+        </div>
+        <motion.div {...fadeUp} className="relative z-10 flex flex-col items-center mb-4">
+          <div className="w-10 h-10 rounded-full border border-border flex items-center justify-center mb-4">
+            <Focus className="w-4 h-4 text-muted-foreground" strokeWidth={1.75} />
+          </div>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Philosophy</p>
+        </motion.div>
+        <div className="relative z-10 max-w-3xl mx-auto text-center">
+          <p className="text-2xl sm:text-3xl lg:text-4xl font-medium text-foreground leading-snug font-grotesk">
+            {manifestoLine.map((word, i) => (
+              <span key={i}>
+                {word.break && <br />}
+                <motion.span
+                  initial={prefersReducedMotion ? undefined : { opacity: 0, y: 12 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.6 }}
+                  transition={{ duration: 0.4, delay: prefersReducedMotion ? 0 : i * 0.035 }}
+                  className="inline-block"
+                >
+                  {word.text}
+                </motion.span>
+                {i < manifestoLine.length - 1 && ' '}
+              </span>
+            ))}
+          </p>
         </div>
       </section>
 

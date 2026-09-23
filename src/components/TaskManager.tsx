@@ -1,5 +1,5 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useTransform, type PanInfo } from 'framer-motion';
 import { Plus, Search, Check, Pencil, Trash2, Clock, Calendar, Sparkles, ListChecks, CalendarClock, AlarmClock, ListTodo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -99,6 +99,14 @@ const TaskManager: React.FC = () => {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; taskId?: string }>({ isOpen: false });
   const reduceMotion = useReducedMotion();
+
+  // Keyboard-nav power-user layer (J/K/X/N) - see DESIGN.md "Task Row
+  // Keyboard Navigation". Rows are real tabIndex={0} elements identified by
+  // data-task-row, so J/K just move native DOM focus (native
+  // :focus-visible gives the visual indicator for free) rather than
+  // mirroring a separate "focused" state - simpler, and it stays correct
+  // automatically since Radix Tabs only mounts the active tab's rows.
+  const aiInputRef = useRef<HTMLInputElement>(null);
 
   const {
     tasks,
@@ -252,6 +260,10 @@ const TaskManager: React.FC = () => {
 
         <motion.div
           ref={rowRef}
+          data-task-row
+          data-task-id={task.id}
+          data-task-date={displayDate}
+          tabIndex={0}
           drag={reduceMotion ? false : 'x'}
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={1}
@@ -261,6 +273,7 @@ const TaskManager: React.FC = () => {
           whileHover={reduceMotion ? undefined : { y: -2 }}
           className={cn(
             'relative touch-pan-y rounded-lg border bg-card p-4 transition-colors hover:bg-accent/40',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
             !reduceMotion && 'cursor-grab active:cursor-grabbing',
             isOverdue ? 'border-destructive/30 bg-destructive/5' : 'border-border'
           )}
@@ -380,6 +393,57 @@ const TaskManager: React.FC = () => {
     );
   };
 
+  // Declared before the isLoading early return below (and the keyboard
+  // effect with it) so hook call order never changes between the loading
+  // and loaded renders - filterTasks/tasks are safe to call during loading,
+  // they just produce empty-ish arrays until data resolves.
+  const todayTasks = filterTasks(getTodayOccurrences());
+  const upcomingTasks = filterTasks(getUpcomingOccurrences());
+  const overdueTasks = filterTasks(getOverdueTasks().map(asOccurrence));
+  const allTasks = filterTasks(tasks.map(asOccurrence));
+
+  // J/K/X/N keyboard nav. Ignored while typing in any text input/textarea
+  // (including this page's search and AI-quick-add fields) so the letters
+  // aren't hijacked from normal typing. Rows are identified via
+  // data-task-row/data-task-id/data-task-date rather than array index, so
+  // nav stays correct across re-renders and works identically in every tab
+  // (Radix Tabs only mounts the active panel's rows).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      if (isTyping) return;
+
+      const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-task-row]'));
+      const activeIndex = rows.findIndex((row) => row === document.activeElement);
+
+      if (e.key === 'j' || e.key === 'J') {
+        e.preventDefault();
+        const next = rows[activeIndex + 1] ?? rows[0];
+        next?.focus();
+      } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        const prev = activeIndex > 0 ? rows[activeIndex - 1] : rows[rows.length - 1];
+        prev?.focus();
+      } else if (e.key === 'x' || e.key === 'X') {
+        if (activeIndex === -1) return;
+        e.preventDefault();
+        const taskId = rows[activeIndex].dataset.taskId;
+        const displayDate = rows[activeIndex].dataset.taskDate;
+        const item = [...todayTasks, ...upcomingTasks, ...overdueTasks, ...allTasks].find(
+          (t) => t.id === taskId && getOccurrenceDate(t) === displayDate
+        );
+        if (item) handleToggleComplete(item);
+      } else if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        aiInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayTasks, upcomingTasks, overdueTasks, allTasks]);
+
   if (isLoading) {
     return (
       <div className="space-y-6 p-4 sm:p-6">
@@ -388,11 +452,6 @@ const TaskManager: React.FC = () => {
       </div>
     );
   }
-
-  const todayTasks = filterTasks(getTodayOccurrences());
-  const upcomingTasks = filterTasks(getUpcomingOccurrences());
-  const overdueTasks = filterTasks(getOverdueTasks().map(asOccurrence));
-  const allTasks = filterTasks(tasks.map(asOccurrence));
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -416,6 +475,7 @@ const TaskManager: React.FC = () => {
         <div className="relative flex-1">
           <Sparkles className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" strokeWidth={2} />
           <Input
+            ref={aiInputRef}
             placeholder="Try: lunch with Sam tomorrow 1pm, high priority"
             value={aiInput}
             onChange={(e) => setAiInput(e.target.value)}
@@ -563,6 +623,26 @@ const TaskManager: React.FC = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Discoverable hint for the J/K/X/N keyboard-nav layer above -
+          without this, a real power-user feature is invisible. Hidden on
+          touch-first layouts where it doesn't apply. */}
+      <div className="hidden items-center gap-4 text-xs text-muted-foreground sm:flex">
+        <span className="flex items-center gap-1">
+          <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono">J</kbd>
+          <span>/</span>
+          <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono">K</kbd>
+          <span className="ml-1">navigate</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono">X</kbd>
+          <span className="ml-1">toggle</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono">N</kbd>
+          <span className="ml-1">new</span>
+        </span>
+      </div>
 
       <TaskModal
         isOpen={isModalOpen}

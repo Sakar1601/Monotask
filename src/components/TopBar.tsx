@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Plus, Menu } from 'lucide-react';
+import { Plus, Menu, Search } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 
@@ -8,11 +8,12 @@ interface TopBarProps {
   onQuickAdd: () => void;
   currentView: string;
   onMenuClick?: () => void;
+  onSearchClick?: () => void;
 }
 
 const SPRING_SNAPPY = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
-const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick }) => {
+const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick, onSearchClick }) => {
   const shouldReduceMotion = useReducedMotion();
 
   const today = new Date();
@@ -27,6 +28,7 @@ const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick })
     dashboard: 'Dashboard',
     tasks: 'Task Manager',
     calendar: 'Calendar',
+    events: 'Events',
     habits: 'Habits',
     tags: 'Tags',
     progress: 'Progress & Analytics',
@@ -68,6 +70,21 @@ const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick })
         </div>
       </div>
 
+      <div className="flex items-center gap-3 shrink-0">
+      {onSearchClick && (
+        <button
+          type="button"
+          onClick={onSearchClick}
+          className="hidden md:flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Search className="h-4 w-4" strokeWidth={1.75} />
+          <span>Search anything...</span>
+          <kbd className="ml-2 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+            &#8984;K
+          </kbd>
+        </button>
+      )}
+
       <motion.div
         whileTap={shouldReduceMotion ? undefined : { scale: 0.94 }}
         transition={SPRING_SNAPPY}
@@ -84,6 +101,7 @@ const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick })
           <span className="hidden sm:inline">Quick Add</span>
         </Button>
       </motion.div>
+      </div>
     </div>
   );
 };

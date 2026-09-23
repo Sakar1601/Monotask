@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
+import { CommandPalette } from "@/components/CommandPalette";
 import Dashboard from "@/components/Dashboard";
 import TaskManager from "@/components/TaskManager";
 import CalendarView from "@/components/CalendarView";
@@ -27,7 +28,20 @@ const Index = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentView, setCurrentView] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const prefersReducedMotion = useReducedMotion();
+
+  // Global Cmd/Ctrl+K to open the command palette, from anywhere in the app.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setIsCommandPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   // Apply theme on component mount and when settings change
   useEffect(() => {
@@ -142,6 +156,7 @@ const Index = () => {
           onQuickAdd={handleQuickAdd}
           currentView={currentView}
           onMenuClick={() => setIsSidebarOpen(true)}
+          onSearchClick={() => setIsCommandPaletteOpen(true)}
         />
         <main className="flex-1 overflow-auto">
           <div className="h-full">
@@ -149,6 +164,11 @@ const Index = () => {
           </div>
         </main>
       </div>
+      <CommandPalette
+        open={isCommandPaletteOpen}
+        onOpenChange={setIsCommandPaletteOpen}
+        onNavigateView={changeView}
+      />
     </div>
   );
 };
