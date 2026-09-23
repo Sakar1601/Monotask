@@ -119,9 +119,16 @@ source validation.
 | AI quota RPC | `SECURITY DEFINER`, optional `p_user_id` | Effective execute grants require source remediation and live verification |
 | Anthropic retention/privacy | Server key reference and feature-specific payloads | Contract, retention setting, region, deletion, and privacy disclosure require owner verification |
 
-Hard-coded cron URLs target Supabase project `masofmjpnpnxjooqdajl`; applying
-these migrations to another environment would still invoke that project unless
-the schedule is changed. Production deployment must explicitly resolve this.
+**Resolved** (`supabase/migrations/20260923120000_fix-cron-hardcoded-project-url.sql`):
+cron job URLs are now resolved from a `functions_base_url` Vault secret at
+call time, the same way `service_role_key` already was, instead of being a
+literal string in the migration. Applying these migrations to another
+Supabase project now requires that project's own operator to set both
+secrets for its own URL/key - no cross-project credential forwarding by
+default. The two original migrations still contain the historical
+hard-coded URL in their own file (migrations are append-only), but the
+`cron.schedule` job names are identical, so the newer migration replaces
+their effective schedule.
 
 ## Severity calibration
 

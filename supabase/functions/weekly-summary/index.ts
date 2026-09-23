@@ -42,6 +42,15 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // See the matching comment in parse-task/index.ts - anonymous accounts
+    // are free to mint repeatedly, so a per-user quota alone doesn't bound
+    // spend for them.
+    if (user.is_anonymous) {
+      return new Response(
+        JSON.stringify({ error: "Create a free account to use the AI weekly summary." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const { data: allowed, error: rateLimitError } = await supabase.rpc(
       "check_and_increment_ai_usage",
