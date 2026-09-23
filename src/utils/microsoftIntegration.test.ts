@@ -139,9 +139,24 @@ describe('Microsoft fetch pagination', () => {
 
     const events = await microsoftProvider.fetchEvents('token', new Date('2026-09-01'), new Date('2026-09-30'));
 
-    expect(events.map((e) => e.externalId)).toEqual(['evt-1', 'evt-2']);
+    expect(events.items.map((e) => e.externalId)).toEqual(['evt-1', 'evt-2']);
+    expect(events.complete).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][0]).toBe('https://graph.microsoft.com/v1.0/me/calendarView?$skip=250');
+  });
+
+  it('marks Microsoft event snapshots partial when the page ceiling is reached with a continuation', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(JSON.stringify({
+      value: [{ id: 'evt-x', subject: 'Still more', start: { dateTime: '2026-09-15T09:00:00.0000000' } }],
+      '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/calendarView?$skip=250',
+    }))));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const events = await microsoftProvider.fetchEvents('token', new Date('2026-09-01'), new Date('2026-09-30'));
+
+    expect(fetchMock).toHaveBeenCalledTimes(20);
+    expect(events.items).toHaveLength(20);
+    expect(events.complete).toBe(false);
   });
 
   it('resolves the default task list id from /me/todo/lists', async () => {

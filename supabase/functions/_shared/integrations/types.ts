@@ -33,6 +33,11 @@ export interface ExternalMessage {
   receivedAt: string; // ISO timestamp
 }
 
+export interface ProviderSnapshot<T> {
+  items: T[];
+  complete: boolean;
+}
+
 export interface EventChanges {
   title?: string;
   description?: string | null;
@@ -56,8 +61,8 @@ export interface IntegrationProvider {
   getAuthUrl(state: string, redirectUri: string, extraScopes?: string): string;
   exchangeCode(code: string, redirectUri: string): Promise<TokenSet>;
   refreshToken(refreshToken: string): Promise<TokenSet>;
-  fetchEvents(accessToken: string, windowStart: Date, windowEnd: Date): Promise<ExternalEvent[]>;
-  fetchTasks(accessToken: string, completedMin: Date, providerMetadata?: Record<string, unknown> | null): Promise<ExternalTask[]>;
+  fetchEvents(accessToken: string, windowStart: Date, windowEnd: Date): Promise<ProviderSnapshot<ExternalEvent>>;
+  fetchTasks(accessToken: string, completedMin: Date, providerMetadata?: Record<string, unknown> | null): Promise<ProviderSnapshot<ExternalTask>>;
   updateEvent(accessToken: string, externalEventId: string, changes: EventChanges): Promise<void>;
   deleteEvent(accessToken: string, externalEventId: string): Promise<void>;
   updateTask(accessToken: string, externalTaskId: string, changes: TaskChanges, providerMetadata?: Record<string, unknown> | null): Promise<void>;
