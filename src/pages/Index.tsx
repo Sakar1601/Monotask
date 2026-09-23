@@ -18,6 +18,7 @@ import TagsView from "@/components/TagsView";
 import ProgressView from "@/components/ProgressView";
 import Settings from "@/components/Settings";
 import SuggestionsView from "@/components/SuggestionsView";
+import TaskModal from "@/components/TaskModal";
 import { useAiSuggestions } from "@/hooks/useAiSuggestions";
 
 const Index = () => {
@@ -29,6 +30,7 @@ const Index = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const prefersReducedMotion = useReducedMotion();
 
   // Global Cmd/Ctrl+K to open the command palette, from anywhere in the app.
@@ -97,10 +99,9 @@ const Index = () => {
     }
   };
 
-  const handleQuickAdd = () => {
-    // Quick add functionality - could open a task modal or navigate to tasks
-    changeView('tasks');
-  };
+  // Opens the New Task dialog in place, on whichever page you're on -
+  // no navigation, so it works identically from Dashboard, Calendar, etc.
+  const handleQuickAdd = () => setIsQuickAddOpen(true);
 
   if (loading) {
     return (
@@ -169,6 +170,7 @@ const Index = () => {
         onOpenChange={setIsCommandPaletteOpen}
         onNavigateView={changeView}
       />
+      <TaskModal isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
     </div>
   );
 };
