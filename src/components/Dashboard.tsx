@@ -2,7 +2,7 @@
 import { quoteForDate } from '@/utils/dailyQuote';
 import React from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Calendar, CheckCircle2, Target, TrendingUp, AlertTriangle, Sparkles } from 'lucide-react';
+import { Calendar, CheckCircle2, Target, TrendingUp, AlertTriangle, Sparkles, Quote } from 'lucide-react';
 import { useTasks, formatDateLocal } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
 import { Card, CardContent } from '@/components/ui/card';
@@ -173,9 +173,19 @@ const Dashboard: React.FC = () => {
       >
         <h1 className="font-grotesk text-2xl font-bold text-foreground">Good morning</h1>
         <p className="mt-1 text-muted-foreground">Here's what's happening with your tasks today.</p>
-        <p className="mt-3 border-l-2 border-foreground/40 pl-3 font-grotesk text-base font-medium text-foreground/85">
-          {quoteForDate()}
-        </p>
+        <figure className="mt-5 flex items-start gap-4 rounded-lg border border-border bg-card px-5 py-4">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <Quote className="h-4 w-4" strokeWidth={1.75} />
+          </span>
+          <div className="min-w-0">
+            <figcaption className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              Thought for today
+            </figcaption>
+            <blockquote className="mt-1 font-grotesk text-lg font-medium leading-snug text-foreground sm:text-xl">
+              &ldquo;{quoteForDate()}&rdquo;
+            </blockquote>
+          </div>
+        </figure>
       </motion.div>
 
       {/* Stats Grid */}
