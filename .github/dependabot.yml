@@ -5,6 +5,25 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    ignore:
+      # React 19 is a deliberate migration (every Radix UI primitive,
+      # react-hook-form, framer-motion, react-day-picker, embla-carousel,
+      # recharts, vaul, and cmdk would need individual compatibility
+      # verification) - not something to take as a routine version bump.
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      # eslint-plugin-react-hooks 6/7 is a from-scratch rewrite for the
+      # React Compiler with much stricter rules (setState-in-effect,
+      # immutability, etc.) - upgrading needs a dedicated pass through
+      # each new finding, not a routine bump alongside unrelated work.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint-plugin-react-hooks"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
