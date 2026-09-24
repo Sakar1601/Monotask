@@ -18,6 +18,7 @@ import {
   Tags,
 } from 'lucide-react';
 import { StickyHowItWorks } from './StickyHowItWorks';
+import { FeaturePreview } from './FeaturePreviews';
 import {
   Accordion,
   AccordionContent,
@@ -230,15 +231,15 @@ export function TrustBand() {
 }
 
 const FEATURES = [
-  { icon: CheckSquare, title: 'Tasks that repeat properly', desc: 'Daily, weekly or monthly, with each day tracked on its own.' },
-  { icon: Repeat, title: 'Habits and streaks', desc: 'Log done, skipped or missed, with a 30-day consistency view.' },
-  { icon: Calendar, title: 'Month, week, agenda', desc: 'Your tasks and synced events in one calendar.' },
-  { icon: LineChart, title: 'Progress at a glance', desc: 'Weekly chart and a 12-week activity heatmap.' },
-  { icon: Search, title: 'Command palette', desc: 'Press Cmd+K to find anything or jump anywhere.' },
-  { icon: Tags, title: 'Tags and filters', desc: 'Organize by tag, priority and status.' },
-  { icon: Download, title: 'Yours to keep', desc: 'Export to PDF, CSV or JSON, and import it back.' },
-  { icon: UserRound, title: 'Start as a guest', desc: 'No email needed. Upgrade to a full account any time.' },
-  { icon: Moon, title: 'Dark and light', desc: 'A calm monochrome interface in either theme.' },
+  { title: 'Tasks that repeat properly', desc: 'Daily, weekly or monthly, with each day tracked on its own.' },
+  { title: 'Habits and streaks', desc: 'Log done, skipped or missed, with a 30-day consistency view.' },
+  { title: 'Month, week, agenda', desc: 'Your tasks and synced events in one calendar.' },
+  { title: 'Progress at a glance', desc: 'Weekly chart and a 12-week activity heatmap.' },
+  { title: 'Command palette', desc: 'Press Cmd+K to find anything or jump anywhere.' },
+  { title: 'Tags and filters', desc: 'Organize by tag, priority and status.' },
+  { title: 'Yours to keep', desc: 'Export to PDF, CSV or JSON, and import it back.' },
+  { title: 'Start as a guest', desc: 'No email needed. Upgrade to a full account any time.' },
+  { title: 'Dark and light', desc: 'A calm monochrome interface in either theme.' },
 ];
 
 export function FeatureGrid() {
@@ -252,13 +253,11 @@ export function FeatureGrid() {
           </h2>
         </Reveal>
         <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ icon: Icon, title, desc }, i) => (
+          {FEATURES.map(({ title, desc }, i) => (
             <Reveal key={title} delay={(i % 3) * 0.05} className="bg-background">
               <Spotlight className="h-full p-7">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:rotate-3">
-                  <Icon className="h-5 w-5 text-foreground" strokeWidth={1.5} />
-                </span>
-                <p className="mt-5 font-grotesk text-lg font-medium text-foreground">{title}</p>
+                <FeaturePreview title={title} />
+                <p className="font-grotesk text-lg font-medium text-foreground">{title}</p>
                 <p className="mt-2 text-sm text-muted-foreground">{desc}</p>
               </Spotlight>
             </Reveal>
