@@ -24,6 +24,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "react-day-picker"
         update-types: ["version-update:semver-major"]
+      # react-day-picker 8 only accepts date-fns 2 or 3, so date-fns 4 can
+      # only land together with the react-day-picker 10 migration.
+      - dependency-name: "date-fns"
+        update-types: ["version-update:semver-major"]
       # React 19 is a deliberate migration (every Radix UI primitive,
       # react-hook-form, framer-motion, react-day-picker, embla-carousel,
       # recharts, vaul, and cmdk would need individual compatibility
