@@ -1,4 +1,4 @@
-import { formatDateLocal } from '@/hooks/useTasks';
+import { formatDateLocal } from '@/utils/dateOnly';
 
 export interface SampleTask {
   title: string;

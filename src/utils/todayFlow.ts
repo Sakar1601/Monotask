@@ -1,7 +1,7 @@
 import type { Task } from '@/hooks/useTasks';
 import type { TaskInstance } from '@/hooks/useTaskInstances';
 import type { Event } from '@/hooks/useEvents';
-import { formatDateLocal } from '@/hooks/useTasks';
+import { formatDateLocal } from '@/utils/dateOnly';
 import { getTasksForDate, RecurringTaskInstance } from '@/utils/recurringTasks';
 import { isOccurrenceCompleted, getOccurrenceDate } from '@/utils/taskOccurrences';
 

@@ -1,4 +1,5 @@
 
+import { formatDateLocal } from '@/utils/dateOnly';
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,13 +32,9 @@ export interface Task {
   sync_error?: string | null;
 }
 
-// Helper function to format date for local timezone
-export const formatDateLocal = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+// Kept as a re-export: the implementation lives in utils/dateOnly so pure
+// utilities can use it without importing this hook (and the Supabase client).
+export { formatDateLocal } from '@/utils/dateOnly';
 
 export const useTasks = () => {
   const { user } = useAuth();
