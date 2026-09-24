@@ -103,12 +103,12 @@ function After() {
 
 /**
  * Drag (or arrow-key) to compare the same day without and with Monotask.
- * The handle nudges once on scroll-in so people notice it can be moved.
+ * The handle nudges each time it scrolls into view so people notice it can be moved.
  */
 export function BeforeAfterSlider() {
   const reduceMotion = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, amount: 0.5 });
+  const inView = useInView(ref, { amount: 0.5 });
   const touched = useRef(false);
   const dragging = useRef(false);
   const [pos, setPos] = useState(50);
@@ -121,7 +121,10 @@ export function BeforeAfterSlider() {
   }, []);
 
   useEffect(() => {
-    if (!inView || reduceMotion || touched.current) return;
+    // Replay the nudge every time the slider scrolls back into view.
+    if (!inView) return;
+    touched.current = false;
+    if (reduceMotion) return;
     const frames = [
       [25, 400],
       [75, 1400],
