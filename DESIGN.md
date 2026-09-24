@@ -37,7 +37,7 @@ colors:
   border-light: "hsl(0 0% 90%)"
 typography:
   display:
-    fontFamily: "Space Grotesk, system-ui, sans-serif"
+    fontFamily: "Geist, system-ui, sans-serif"
     fontSize: "clamp(1.5rem, 4vw, 3.75rem)"
     fontWeight: 700
     lineHeight: 1.05
@@ -121,7 +121,7 @@ Dark is the default theme system-wide, not a toggle-able afterthought; light mod
 - Pure monochrome neutrals (near-black/near-white), zero decorative accent color
 - One real semantic exception: a muted brick-red destructive/error hue
 - Dark-by-default, light mode fully inverted and supported
-- Two typefaces: Space Grotesk for display, Geist for body and UI, Geist Mono for numbers/data
+- Two typefaces: Geist for everything (display headlines at heavier weight and tighter tracking, body and UI at regular weights), Geist Mono for numbers, data and small caps labels
 - Motion is either physics-based (spring) or a single shared expo-out ease - never a default CSS ease
 - Flat-by-default surfaces; real elevation (shadow, glass) reserved for things that are actually floating above the page
 - Two radius registers by surface type: tight/shadcn-scaled in the app, soft/pill-heavy on marketing surfaces
@@ -152,15 +152,15 @@ Strict monochrome. Every neutral in the palette is a step of true gray (0% satur
 
 ## Typography
 
-**Display Font:** Space Grotesk (with `system-ui, sans-serif` fallback)
+**Display Font:** Geist, set at 600 weight with tight negative tracking (with `system-ui, sans-serif` fallback). The Tailwind `font-grotesk` class name is kept for the display role but maps to Geist.
 **Body Font:** Geist (with `system-ui, sans-serif` fallback)
 **Label/Mono Font:** Geist Mono (with `ui-monospace, monospace` fallback)
 
-**Character:** Space Grotesk is used sparingly and only at real display scale (page-level H1s, hero headlines) - it's geometric and a little unusual, so it earns attention precisely by staying rare. Geist carries every other word in the interface: legible, neutral-but-not-generic, chosen specifically to move away from Inter (the default every AI-generated interface reaches for). Geist Mono handles anything that is fundamentally a number or a piece of literal data - task counts, streak counts, dates, the AI Quick Add input - because tabular alignment and a monospace's "this is data, not prose" signal both matter there.
+**Character:** one family carries the whole product: Geist, chosen to move away from Inter (the default every AI-generated interface reaches for). Display scale differs from body by weight (600 vs 400/500) and tracking (-0.03em to -0.045em), not by a second typeface, which keeps the marketing site and app interior visibly the same product. Geist Mono handles anything that is fundamentally a number or a piece of literal data (task counts, streak counts, dates, the AI Quick Add input) and the small uppercase eyebrow labels above landing sections.
 
 ### Hierarchy
-- **Display** (700, `clamp(1.5rem, 4vw, 3.75rem)`, 1.05 line-height, -0.02em tracking): hero headlines and the single H1 per view. Space Grotesk only.
-- **Headline** (600-700, 1.5-2.25rem, 1.1-1.2 line-height): section headings within a page (e.g. "Every detail, covered."). Space Grotesk.
+- **Display** (700, `clamp(1.5rem, 4vw, 3.75rem)`, 1.05 line-height, -0.02em tracking): hero headlines and the single H1 per view. Geist 600, tracking -0.045em on the hero, -0.03em on section headings.
+- **Headline** (600-700, 1.5-2.25rem, 1.1-1.2 line-height): section headings within a page (e.g. "AI that suggests. You decide."). Geist.
 - **Body** (400-500, 1rem, 1.5 line-height): all prose, descriptions, form labels. Geist. Long-form copy is capped near 65ch.
 - **Label** (500, 0.75-0.875rem, 0.02em tracking): eyebrows, badges, tab triggers, metadata. Geist, used sparingly - see the eyebrow-restraint rule below.
 - **Numeric / Mono** (400-500, 0.875-1rem, tabular): counts, dates, timestamps, the AI-parsed input field. Geist Mono, always with `tabular-nums` where values change (streak counters, task counts).
@@ -291,8 +291,10 @@ Three view modes - Month / Week / Agenda - switched via a pill-style toggle, all
 - **Bar chart:** Recharts, styled to the neutral palette only (no default Recharts color scheme) - bars grow in on mount, gated to only start that animation once the chart is actually scrolled into view (mounting it off-screen would let the grow-in animation finish before a user ever sees it).
 - **Activity heatmap:** not a chart library - hand-built grid of cells, each cell's opacity computed from a normalized 0-1 intensity value (`Math.min(day.count / 5, 1)`, floored at `0.12` so a zero-activity day is still a visible cell rather than invisible), filled with `hsl(var(--primary) / opacity)` so it re-themes automatically between light and dark mode instead of needing a separate dark-mode heatmap palette.
 
-### Landing Demo Component Library
-The marketing site's core credibility technique: every feature claim is backed by a small, real, working recreation of the actual product UI (built from the same primitives as the real app), never a static screenshot or an invented mockup. Named instances: `AIShowcase` (a typewriter-animated Quick Add demo plus an Accept/Dismiss AI Suggestions demo), `SyncDiagram` (an animated bidirectional-pulse diagram of the Google/Microsoft sync relationship), `RecurringDemo` (a week-strip showing per-occurrence completion), `AnalyticsPreview` (a scaled-down real chart + heatmap), `StepDemos` (three per-step mini product recreations inside the sticky-stack), `FeatureDetailGrid` (the tabbed granular-feature grid). The GSAP sticky-stack (`StepsStack`) is the one scroll-hijacking moment on the whole page - capped at exactly one per page by policy, pinning each step at 92% viewport height on desktop and collapsing to a plain vertical stack (no pinning at all) below `md`, gated by `gsap.matchMedia()`.
+### Landing Page Composition
+The landing page leads with the product's differentiators (AI capture and two-way Google/Microsoft sync), not its commodity features. Section order: hero (headline, CTAs, and `ProductWindow`, a cropped recreation of the real app window whose suggestion loop mirrors the accept-before-it-saves trust model), a typographic "connects with" strip, an inverted problem section, AI (`AIShowcase`), integrations (`SyncDiagram`), a trust band, a hairline-divided feature grid, three how-it-works steps, FAQ, a closing CTA card, and an inverted footer.
+
+Rhythm comes from alternating normal and **inverted** sections (`bg-foreground text-background`), which flips correctly in both themes (a white section on the dark theme, a black one on the light theme). Structure comes from hairline-divided grids (1px `border` gaps inside a rounded container) rather than individual cards. Every figure in the trust band is a fact about how the product is built (for example message scanning is opt-in, Gmail access is read-only), never an invented usage statistic, and integration names are typographic wordmarks rather than reproductions of brand marks. The old GSAP sticky-stack was removed; the page has no scroll-hijacked section.
 
 ### Ambient Backgrounds & Grain
 Two atmospheric techniques, marketing-site only:
@@ -303,7 +305,7 @@ Two atmospheric techniques, marketing-site only:
 
 ### Do:
 - **Do** keep the palette strictly monochrome plus the one destructive red; route any new "this needs to stand out" impulse through weight, scale, or motion instead of a new color.
-- **Do** use Space Grotesk only at real display scale; Geist for everything else.
+- **Do** keep to one typeface: Geist for display and body, Geist Mono for data and eyebrow labels.
 - **Do** check every new animated component against `prefers-reduced-motion` as part of building it, not as a follow-up pass.
 - **Do** keep the app interior's radius scale (8/6/4px) and the marketing site's (16/24px + pills) separate; never mix them within one surface.
 - **Do** use the tinted-shadow and glass techniques only for genuinely elevated/floating elements, never as ambient decoration on resting content.

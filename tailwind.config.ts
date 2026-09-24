@@ -28,7 +28,7 @@ export default {
 				// with more character, and matches the dark, Linear/Vercel-
 				// adjacent register the rest of this pass leans into.
 				'sans': ['Geist', 'system-ui', 'sans-serif'],
-				'grotesk': ['Space Grotesk', 'system-ui', 'sans-serif'],
+				'grotesk': ['Geist', 'system-ui', 'sans-serif'],
 				'mono': ['Geist Mono', 'ui-monospace', 'monospace'],
 			},
 			colors: {
