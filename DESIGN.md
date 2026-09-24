@@ -195,6 +195,12 @@ All dialogs share one look from `ui/dialog.tsx` and `ui/alert-dialog.tsx`: a blu
 
 Form dialogs (Task, Habit, Event) follow one anatomy: title and description, then fields, then a full-bleed footer bar (`-mx-6 border-t bg-muted/30`) holding Cancel and the primary action. Labels always sit above their inputs (never placeholder-as-label), with "(optional)" in muted text rather than in the label wording. Small fixed choices (priority, habit frequency) use `SegmentedControl` (a radio group) instead of a dropdown, since one tap beats open-then-pick; longer lists (tag, repeat) keep `Select`.
 
+### First-Run, Today, and Undo
+- **Today card** (`TodaySchedule`) merges today's meetings and tasks on one timeline with a live "Now" marker, plus an "Anytime today" list for untimed tasks. The merge lives in a pure, tested function (`utils/todayFlow.ts`). Tasks tick off in place; meetings are never "done", so the subtitle counts them separately ("2 meetings, 1 of 3 tasks done"). Clearing the last task triggers a one-time monochrome burst and an "All done" banner, only on the transition, never on page load.
+- **Undo, not confirmation, for completing a task:** completing shows a 4-second Undo toast (shared toast id, so several quick completions replace rather than stack). Deleting still uses a confirm dialog, because it is not reversible.
+- **First-run checklist** (`OnboardingChecklist`): four steps (add a task, start a habit, connect Google or Outlook, try Cmd+K) with a progress bar and a dismiss control persisted in localStorage. Empty accounts also get "Load sample data": five clearly labelled tasks (one recurring) and a habit, dated relative to today, that can be deleted like anything else.
+- **Landing try-it:** the AI Quick Add on the landing page is a real editable input backed by a small deterministic browser parser (`utils/quickAddPreview.ts`), so visitors can use the headline feature without an account or any API cost. It says so on the card and points at the real Claude-backed feature.
+
 ## Elevation & Depth
 
 Flat by default. Cards and list rows in the app interior carry a 1px `border` and nothing else at rest - hierarchy comes from spacing, grouping, and border presence/absence, not drop shadows. Real elevation (shadow or glass) is reserved for things that are genuinely floating above the page: modals, popovers, dropdowns, the sidebar's mobile drawer scrim. This keeps a shadow meaning something when it does appear, instead of every card having one by default.

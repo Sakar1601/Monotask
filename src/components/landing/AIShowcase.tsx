@@ -1,77 +1,8 @@
 import { useEffect, useState } from 'react';
 import { motion, useReducedMotion, useInView } from 'framer-motion';
 import { useRef } from 'react';
-import { Sparkles, Mail, Check, X, CalendarClock } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-
-const QUICK_ADD_PHRASE = 'lunch with sam tomorrow 1pm, high priority';
-
-/**
- * Recreates the actual AI Quick Add flow (TaskManager's free-text input,
- * parsed via Claude, pre-filling the real task form fields for the user to
- * review) using the app's own input/badge primitives. The typewriter plus
- * staggered field reveal tells the "plain English in, structured fields you
- * still confirm out" story in sequence, matching the real trust model: the
- * parsed draft is never auto-saved.
- */
-function QuickAddDemo() {
-  const reduceMotion = useReducedMotion();
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, amount: 0.5 });
-  const [typed, setTyped] = useState(reduceMotion ? QUICK_ADD_PHRASE : '');
-  const [parsed, setParsed] = useState(!!reduceMotion);
-
-  useEffect(() => {
-    if (reduceMotion || !inView) return;
-    let i = 0;
-    const type = setInterval(() => {
-      i += 1;
-      setTyped(QUICK_ADD_PHRASE.slice(0, i));
-      if (i >= QUICK_ADD_PHRASE.length) {
-        clearInterval(type);
-        setTimeout(() => setParsed(true), 450);
-      }
-    }, 38);
-    return () => clearInterval(type);
-  }, [inView, reduceMotion]);
-
-  return (
-    <div
-      ref={ref}
-      className="rounded-2xl border border-border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:border-foreground/25 hover:shadow-md sm:p-6"
-    >
-      <div className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <Sparkles className="h-4 w-4" strokeWidth={2} />
-        AI Quick Add
-      </div>
-      <div className="rounded-xl border border-border bg-background px-4 py-3 font-mono text-sm text-foreground">
-        {typed}
-        <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-[2px] animate-pulse bg-foreground/60" />
-      </div>
-
-      <motion.div
-        initial={reduceMotion ? undefined : { opacity: 0, height: 0 }}
-        animate={parsed ? { opacity: 1, height: 'auto' } : { opacity: 0, height: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-        className="overflow-hidden"
-      >
-        <div className="mt-4 space-y-2.5 rounded-xl border border-border bg-secondary/40 p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Review before saving
-          </p>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-foreground">Lunch with Sam</span>
-            <Badge variant="secondary" className="font-normal">High</Badge>
-          </div>
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <CalendarClock className="h-3.5 w-3.5" strokeWidth={2} />
-            Tomorrow, 1:00 PM
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
+import {Mail, Check, X } from 'lucide-react';
+import { InteractiveQuickAdd } from './InteractiveQuickAdd';
 
 interface SuggestionCard {
   from: string;
@@ -173,7 +104,7 @@ export function AIShowcase() {
       className="grid gap-5 sm:grid-cols-2"
     >
       <motion.div variants={itemVariants}>
-        <QuickAddDemo />
+        <InteractiveQuickAdd />
       </motion.div>
       <motion.div variants={itemVariants}>
         <SuggestionsDemo />

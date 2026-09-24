@@ -1,4 +1,5 @@
 
+import { parseDateOnly } from '@/utils/dateOnly';
 import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
@@ -158,7 +159,7 @@ const ProgressView: React.FC = () => {
   // KPI calculations
   const completedThisWeek = tasks.filter(task => {
     if (task.status !== 'completed' || !task.due_date) return false;
-    const taskDate = new Date(task.due_date);
+    const taskDate = parseDateOnly(task.due_date);
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     return taskDate >= weekAgo;
@@ -166,7 +167,7 @@ const ProgressView: React.FC = () => {
 
   const totalThisWeek = tasks.filter(task => {
     if (!task.due_date) return false;
-    const taskDate = new Date(task.due_date);
+    const taskDate = parseDateOnly(task.due_date);
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     return taskDate >= weekAgo;
@@ -174,7 +175,7 @@ const ProgressView: React.FC = () => {
 
   const completedLast30Days = tasks.filter(task => {
     if (task.status !== 'completed' || !task.due_date) return false;
-    const taskDate = new Date(task.due_date);
+    const taskDate = parseDateOnly(task.due_date);
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     return taskDate >= thirtyDaysAgo;

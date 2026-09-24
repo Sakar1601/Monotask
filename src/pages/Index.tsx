@@ -31,6 +31,24 @@ const Index = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [paletteUsed, setPaletteUsed] = useState(() => {
+    try {
+      return localStorage.getItem('monotask-palette-used') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  // Feeds the first-run checklist's "try the command palette" step.
+  useEffect(() => {
+    if (!isCommandPaletteOpen) return;
+    setPaletteUsed(true);
+    try {
+      localStorage.setItem('monotask-palette-used', '1');
+    } catch {
+      /* private mode: the step just won't persist */
+    }
+  }, [isCommandPaletteOpen]);
   const prefersReducedMotion = useReducedMotion();
 
   // Global Cmd/Ctrl+K to open the command palette, from anywhere in the app.
@@ -121,7 +139,14 @@ const Index = () => {
   const renderCurrentView = () => {
     switch (currentView) {
       case 'dashboard':
-        return <Dashboard onNavigate={changeView} />;
+        return (
+          <Dashboard
+            onNavigate={changeView}
+            onAddTask={() => setIsQuickAddOpen(true)}
+            onOpenPalette={() => setIsCommandPaletteOpen(true)}
+            paletteUsed={paletteUsed}
+          />
+        );
       case 'tasks':
         return <TaskManager />;
       case 'calendar':
