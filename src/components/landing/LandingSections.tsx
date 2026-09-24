@@ -17,6 +17,7 @@ import {
   UserRound,
   Tags,
 } from 'lucide-react';
+import { StickyHowItWorks } from './StickyHowItWorks';
 import {
   Accordion,
   AccordionContent,
@@ -275,8 +276,17 @@ const STEPS = [
 ];
 
 export function HowItWorks() {
+  const reduce = useReducedMotion();
   return (
-    <section id="how-it-works" className="border-t border-border px-4 py-24 sm:px-6 lg:px-8">
+    <section id="how-it-works" className="border-t border-border">
+      {/* Large screens get the scroll-driven, pinned version; small screens
+          and reduced-motion users get the plain three-column steps below. */}
+      {!reduce && (
+        <div className="hidden lg:block">
+          <StickyHowItWorks />
+        </div>
+      )}
+      <div className={`px-4 py-24 sm:px-6 lg:px-8 ${reduce ? '' : 'lg:hidden'}`}>
       <div className="mx-auto max-w-6xl">
         <Reveal className="max-w-2xl">
           <Eyebrow>How it works</Eyebrow>
@@ -303,6 +313,7 @@ export function HowItWorks() {
             </Reveal>
           ))}
         </div>
+      </div>
       </div>
     </section>
   );

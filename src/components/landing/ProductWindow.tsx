@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   LayoutDashboard,
   CheckSquare,
@@ -128,26 +128,22 @@ export function ProductWindow() {
                     {t.source && <SourceChip label={t.source} />}
                   </div>
                 ))}
-                <AnimatePresence>
-                  {accepted && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.35 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="flex items-center gap-3 rounded-lg bg-accent px-2 py-2">
-                        <span className="h-4 w-4 shrink-0 rounded border border-border" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] text-foreground">Send Q3 deck to the design team</p>
-                          <p className="text-[11px] text-muted-foreground">Due Friday</p>
-                        </div>
-                        <SourceChip label="AI" />
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {/* Always in the layout so accepting never changes the window's height;
+                    only its opacity and offset animate. */}
+                <motion.div
+                  animate={accepted ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
+                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  aria-hidden={!accepted}
+                >
+                  <div className="flex items-center gap-3 rounded-lg bg-accent px-2 py-2">
+                    <span className="h-4 w-4 shrink-0 rounded border border-border" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] text-foreground">Send Q3 deck to the design team</p>
+                      <p className="text-[11px] text-muted-foreground">Due Friday</p>
+                    </div>
+                    <SourceChip label="AI" />
+                  </div>
+                </motion.div>
               </div>
             </div>
 
@@ -157,33 +153,41 @@ export function ProductWindow() {
                 <Sparkles className="h-3 w-3" /> Suggestions
               </p>
               <div className="space-y-2">
-                <AnimatePresence initial={false}>
-                  {!accepted && (
-                    <motion.div
-                      key="task"
-                      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden rounded-lg border border-border bg-card p-3"
-                    >
-                      <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                        <Mail className="h-3 w-3" /> From an email
-                      </p>
-                      <p className="mt-1 text-[13px] font-medium text-foreground">Send Q3 deck to the design team</p>
-                      <div className="mt-2.5 flex gap-2">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                            step === 1 ? 'bg-foreground/80 text-background' : 'bg-foreground text-background'
-                          }`}
-                        >
-                          <Check className="h-3 w-3" /> Accept
-                        </span>
-                        <span className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-muted-foreground">
-                          <X className="h-3 w-3" /> Dismiss
-                        </span>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <div className="relative min-h-[6.25rem] rounded-lg border border-border bg-card p-3">
+                  <motion.div
+                    animate={{ opacity: accepted ? 0 : 1 }}
+                    transition={{ duration: 0.3 }}
+                    aria-hidden={accepted}
+                  >
+                    <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <Mail className="h-3 w-3" /> From an email
+                    </p>
+                    <p className="mt-1 text-[13px] font-medium text-foreground">Send Q3 deck to the design team</p>
+                    <div className="mt-2.5 flex gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                          step === 1 ? 'bg-foreground/80 text-background' : 'bg-foreground text-background'
+                        }`}
+                      >
+                        <Check className="h-3 w-3" /> Accept
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-muted-foreground">
+                        <X className="h-3 w-3" /> Dismiss
+                      </span>
+                    </div>
+                  </motion.div>
+                  <motion.div
+                    animate={{ opacity: accepted ? 1 : 0, scale: accepted ? 1 : 0.96 }}
+                    transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                    aria-hidden={!accepted}
+                    className="absolute inset-0 flex items-center justify-center gap-2 text-[13px] font-medium text-foreground"
+                  >
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-background">
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                    </span>
+                    Accepted, added to Today
+                  </motion.div>
+                </div>
                 <div className="rounded-lg border border-border bg-card p-3">
                   <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                     <CalendarClock className="h-3 w-3" /> Meeting overlap
