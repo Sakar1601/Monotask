@@ -10,6 +10,7 @@ import { ThemeToggle } from '@/components/landing/ThemeToggle';
 import { AIShowcase } from '@/components/landing/AIShowcase';
 import { SyncDiagram } from '@/components/landing/SyncDiagram';
 import { ProductWindow } from '@/components/landing/ProductWindow';
+import { BeforeAfterSlider } from '@/components/landing/BeforeAfterSlider';
 import {
   Eyebrow,
   Reveal,
@@ -236,6 +237,22 @@ const Landing = () => {
 
       <WorksWithStrip />
       <ProblemSection />
+
+      {/* Before / after: the same day, scattered versus one timeline */}
+      <section className="px-4 py-24 sm:px-6 lg:px-8">
+        <Reveal className="mx-auto mb-14 max-w-3xl text-center">
+          <Eyebrow>Before and after</Eyebrow>
+          <h2 className="mt-6 text-balance font-grotesk text-4xl font-semibold tracking-[-0.03em] text-foreground sm:text-5xl">
+            Same day. A very different afternoon.
+          </h2>
+          <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
+            The same meeting, message and to-do, first scattered across four apps, then on one timeline.
+          </p>
+        </Reveal>
+        <Reveal>
+          <BeforeAfterSlider />
+        </Reveal>
+      </section>
 
       {/* AI */}
       <section id="ai" className="px-4 py-24 sm:px-6 lg:px-8">
