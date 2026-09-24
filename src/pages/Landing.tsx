@@ -103,7 +103,7 @@ const Landing = () => {
         };
 
   return (
-    <div className="min-h-[100dvh] bg-background overflow-x-hidden">
+    <div className="min-h-[100dvh] bg-background overflow-x-clip">
       <GrainOverlay />
 
       {!prefersReducedMotion && (
@@ -149,7 +149,22 @@ const Landing = () => {
       </nav>
 
       {/* Hero */}
-      <section id="top" className="relative px-4 pb-0 pt-32 sm:px-6 sm:pt-40 lg:px-8">
+      <section
+        id="top"
+        onMouseMove={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          e.currentTarget.style.setProperty('--mx', `${e.clientX - r.left}px`);
+          e.currentTarget.style.setProperty('--my', `${e.clientY - r.top}px`);
+        }}
+        className="relative px-4 pb-0 pt-32 sm:px-6 sm:pt-40 lg:px-8"
+      >
+        {/* Brighter grid lines that only show around the cursor */}
+        {!prefersReducedMotion && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 hidden opacity-0 transition-opacity duration-500 [background-image:linear-gradient(hsl(var(--foreground)/0.22)_1px,transparent_1px),linear-gradient(90deg,hsl(var(--foreground)/0.22)_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(240px_circle_at_var(--mx,-999px)_var(--my,-999px),black,transparent)] [@media(hover:hover)]:block [@media(hover:hover)]:opacity-100"
+          />
+        )}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-[0.5] [background-image:linear-gradient(hsl(var(--border))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--border))_1px,transparent_1px)] [background-size:56px_56px] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent)]"
