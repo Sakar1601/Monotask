@@ -108,7 +108,7 @@ const ConsistencyMatrix: React.FC<{ logs: HabitLog[]; activeHabitCount: number; 
         <p className="mb-4 text-sm text-muted-foreground">
           30-day density across all active habits
         </p>
-        <div className="grid grid-cols-7 gap-1.5">
+        <div className="grid max-w-xl grid-cols-10 gap-1.5 sm:grid-cols-[repeat(15,minmax(0,1fr))]">
           {days.map((day, i) => {
             const count = completedCountByDate.get(day.date) || 0;
             const intensity = activeHabitCount > 0 ? Math.min(count / activeHabitCount, 1) : 0;
@@ -120,7 +120,7 @@ const ConsistencyMatrix: React.FC<{ logs: HabitLog[]; activeHabitCount: number; 
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.15, delay: reduceMotion ? 0 : Math.min(i, 30) * 0.01 }}
                 title={`${day.date}: ${count} of ${activeHabitCount} habits`}
-                className="flex aspect-square items-center justify-center rounded-md border border-border/60 text-[11px] font-medium tabular-nums text-muted-foreground transition-colors"
+                className="flex aspect-square items-center justify-center rounded-md border border-border/60 text-[10px] font-medium tabular-nums text-muted-foreground transition-colors"
                 style={{
                   backgroundColor: opacity > 0 ? `hsl(var(--primary) / ${opacity})` : undefined,
                   color: opacity > 0.5 ? 'hsl(var(--primary-foreground))' : undefined,
@@ -130,6 +130,17 @@ const ConsistencyMatrix: React.FC<{ logs: HabitLog[]; activeHabitCount: number; 
               </motion.div>
             );
           })}
+        </div>
+        <div className="mt-4 flex max-w-xl items-center justify-end gap-2 text-[11px] text-muted-foreground">
+          <span>Less</span>
+          {[0.15, 0.4, 0.7, 1].map((o) => (
+            <span
+              key={o}
+              className="h-3 w-3 rounded-[3px] border border-border/60"
+              style={{ backgroundColor: `hsl(var(--primary) / ${o})` }}
+            />
+          ))}
+          <span>More</span>
         </div>
       </CardContent>
     </Card>
@@ -457,7 +468,7 @@ const HabitsView: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-40" />
         <HabitsListSkeleton />
       </div>
@@ -465,11 +476,11 @@ const HabitsView: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-4 sm:p-6">
+    <div>
       <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           {/* TopBar already renders "Habits" as the page h1. */}
-          <p className="text-base font-medium text-foreground">
+          <p className="text-[15px] text-muted-foreground">
             Track your daily habits and build consistency
           </p>
         </div>
