@@ -37,7 +37,7 @@ const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick, o
   };
 
   return (
-    <div className="h-16 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 [@media(prefers-reduced-transparency:reduce)]:bg-background border-b border-border flex items-center justify-between gap-3 px-4 sm:px-6 transition-colors">
+    <div className="h-16 sm:h-24 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 [@media(prefers-reduced-transparency:reduce)]:bg-background border-b border-border flex items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 transition-colors">
       <div className="flex items-center gap-3 min-w-0">
         <motion.button
           onClick={onMenuClick}
@@ -62,11 +62,11 @@ const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick, o
             initial={shouldReduceMotion ? undefined : { opacity: 0, y: -4 }}
             animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="text-xl font-semibold font-grotesk tracking-tight text-foreground truncate"
+            className="text-xl font-semibold font-grotesk tracking-[-0.03em] text-foreground truncate sm:text-3xl sm:leading-tight"
           >
             {viewTitles[currentView as keyof typeof viewTitles]}
           </motion.h1>
-          <p className="text-sm text-muted-foreground hidden sm:block truncate">{formattedDate}</p>
+          <p className="text-sm text-muted-foreground hidden sm:block truncate sm:mt-0.5">{formattedDate}</p>
         </div>
       </div>
 
