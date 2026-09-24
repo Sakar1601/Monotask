@@ -208,3 +208,14 @@
 @media (prefers-reduced-motion: reduce) {
   .animate-marquee, .animate-grid-drift { animation: none; }
 }
+
+/* Circular theme reveal (landing page toggle): let JS drive the clip-path
+   instead of the default cross-fade. Scoped by class so the app's own
+   view-transition tuning is left alone. */
+.theme-reveal::view-transition-old(root),
+.theme-reveal::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+.theme-reveal::view-transition-old(root) { z-index: 1; }
+.theme-reveal::view-transition-new(root) { z-index: 2; }
