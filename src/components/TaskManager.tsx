@@ -14,7 +14,8 @@ import { useTaskInstances } from '@/hooks/useTaskInstances';
 import { useTags } from '@/hooks/useTags';
 import { useTaskParser, ParsedTaskDraft } from '@/hooks/useTaskParser';
 import { generateRecurringInstances, getTasksForDate, RecurringTaskInstance } from '@/utils/recurringTasks';
-import { isOccurrenceCompleted, getOccurrenceDate, toggleOccurrenceComplete } from '@/utils/taskOccurrences';
+import { isOccurrenceCompleted, getOccurrenceDate } from '@/utils/taskOccurrences';
+import { useCompleteWithUndo } from '@/hooks/useCompleteWithUndo';
 import TaskModal from './TaskModal';
 import ConfirmDialog from './ConfirmDialog';
 
@@ -167,8 +168,9 @@ const TaskManager: React.FC = () => {
     });
   };
 
+  const completeWithUndo = useCompleteWithUndo();
   const handleToggleComplete = (item: RecurringTaskInstance) => {
-    toggleOccurrenceComplete(item, { updateTask, updateInstance });
+    completeWithUndo(item);
   };
 
   const handleEditTask = (task: Task) => {

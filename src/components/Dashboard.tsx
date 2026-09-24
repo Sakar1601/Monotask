@@ -1,4 +1,5 @@
 
+import { parseDateOnly } from '@/utils/dateOnly';
 import { quoteForDate } from '@/utils/dailyQuote';
 import React from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -7,6 +8,8 @@ import { useTasks, formatDateLocal } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
 import { useAiSuggestions } from '@/hooks/useAiSuggestions';
 import { Button } from '@/components/ui/button';
+import TodaySchedule from '@/components/TodaySchedule';
+import OnboardingChecklist from '@/components/OnboardingChecklist';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -105,7 +108,14 @@ const greeting = () => {
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 };
 
-const Dashboard: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNavigate }) => {
+interface DashboardProps {
+  onNavigate?: (view: string) => void;
+  onAddTask?: () => void;
+  onOpenPalette?: () => void;
+  paletteUsed?: boolean;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onAddTask, onOpenPalette, paletteUsed = false }) => {
   const { pendingCount } = useAiSuggestions();
   const { tasks, isLoading: tasksLoading } = useTasks();
   const { habits, isLoading: habitsLoading } = useHabits();
@@ -138,7 +148,7 @@ const Dashboard: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNaviga
 
   const upcomingTasks = tasks
     .filter(task => task.status === 'pending' && task.due_date)
-    .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
+    .sort((a, b) => parseDateOnly(a.due_date!).getTime() - parseDateOnly(b.due_date!).getTime())
     .slice(0, 5);
 
   const recentlyCompleted = tasks
@@ -181,6 +191,16 @@ const Dashboard: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNaviga
       >
         <h1 className="font-grotesk text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">{greeting()}</h1>
         <p className="mt-1.5 text-muted-foreground">Here's what's happening with your tasks today.</p>
+        {onNavigate && onAddTask && onOpenPalette && (
+          <div className="mt-6">
+            <OnboardingChecklist
+              onNavigate={onNavigate}
+              onAddTask={onAddTask}
+              onOpenPalette={onOpenPalette}
+              paletteUsed={paletteUsed}
+            />
+          </div>
+        )}
         <figure className="mt-6 flex items-start gap-4 rounded-xl border border-border bg-card px-5 py-4">
           <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <Quote className="h-4 w-4" strokeWidth={1.75} />
@@ -242,6 +262,9 @@ const Dashboard: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNaviga
         <StatCard label="Active habits" value={activeHabits} icon={<TrendingUp className="h-5 w-5" strokeWidth={1.75} />} />
       </motion.div>
 
+      {/* Today: meetings and tasks on one timeline */}
+      <TodaySchedule onNavigate={onNavigate} />
+
       {/* Overdue Tasks Alert */}
       {overdueTasks > 0 && (
         <motion.div
@@ -300,7 +323,7 @@ const Dashboard: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNaviga
                         <div className="min-w-0 flex-1">
                           <h3 className="truncate font-medium text-foreground">{task.title}</h3>
                           <div className="mt-1 flex items-center gap-2 text-sm tabular-nums text-muted-foreground">
-                            <span>{task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No date'}</span>
+                            <span>{task.due_date ? parseDateOnly(task.due_date).toLocaleDateString() : 'No date'}</span>
                             {task.due_time && <span>at {task.due_time}</span>}
                           </div>
                         </div>
