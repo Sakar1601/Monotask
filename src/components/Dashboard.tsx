@@ -2,9 +2,11 @@
 import { quoteForDate } from '@/utils/dailyQuote';
 import React from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Calendar, CheckCircle2, Target, TrendingUp, AlertTriangle, Sparkles, Quote } from 'lucide-react';
+import { Calendar, CheckCircle2, Target, TrendingUp, AlertTriangle, Sparkles, Quote, ArrowRight } from 'lucide-react';
 import { useTasks, formatDateLocal } from '@/hooks/useTasks';
 import { useHabits } from '@/hooks/useHabits';
+import { useAiSuggestions } from '@/hooks/useAiSuggestions';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,11 +44,11 @@ const StatCard: React.FC<{ label: string; value: number | string; icon: React.Re
           : { hidden: { opacity: 0, y: 16, scale: 0.96 }, show: { opacity: 1, y: 0, scale: 1 } }
       }
       transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-      whileHover={prefersReducedMotion ? undefined : { y: -4 }}
+      whileHover={prefersReducedMotion ? undefined : { y: -2 }}
       onMouseMove={prefersReducedMotion ? undefined : handleMouseMove}
       className="group relative h-full"
     >
-      <Card className="relative h-full overflow-hidden transition-[border-color,box-shadow] duration-300 hover:border-primary/40 hover:shadow-[0_16px_36px_-18px_hsl(var(--primary)/0.55)]">
+      <Card className="relative h-full overflow-hidden transition-colors duration-300 hover:border-foreground/25">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
@@ -57,10 +59,10 @@ const StatCard: React.FC<{ label: string; value: number | string; icon: React.Re
         <CardContent className="relative p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">{label}</p>
-              <p className="mt-1 font-grotesk text-2xl font-bold tabular-nums text-foreground">{value}</p>
+              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+              <p className="mt-2 font-grotesk text-4xl font-semibold tracking-[-0.03em] tabular-nums text-foreground">{value}</p>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors group-hover:text-foreground">
               {icon}
             </div>
           </div>
@@ -81,7 +83,7 @@ const StatCard: React.FC<{ label: string; value: number | string; icon: React.Re
 };
 
 const DashboardSkeleton: React.FC = () => (
-  <div className="space-y-6 p-6">
+  <div className="space-y-6">
     <div className="space-y-2">
       <Skeleton className="h-8 w-56" />
       <Skeleton className="h-4 w-72" />
@@ -98,7 +100,13 @@ const DashboardSkeleton: React.FC = () => (
   </div>
 );
 
-const Dashboard: React.FC = () => {
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+};
+
+const Dashboard: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNavigate }) => {
+  const { pendingCount } = useAiSuggestions();
   const { tasks, isLoading: tasksLoading } = useTasks();
   const { habits, isLoading: habitsLoading } = useHabits();
   const prefersReducedMotion = useReducedMotion();
@@ -164,16 +172,16 @@ const Dashboard: React.FC = () => {
   const sectionTransition = { duration: prefersReducedMotion ? 0 : 0.5, ease: [0.16, 1, 0.3, 1] as const };
 
   return (
-    <div className="min-h-screen space-y-6 bg-background p-6 transition-colors">
+    <div className="space-y-8">
       {/* Welcome Section */}
       <motion.div
         initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={sectionTransition}
       >
-        <h1 className="font-grotesk text-2xl font-bold text-foreground">Good morning</h1>
-        <p className="mt-1 text-muted-foreground">Here's what's happening with your tasks today.</p>
-        <figure className="mt-5 flex items-start gap-4 rounded-lg border border-border bg-card px-5 py-4">
+        <h1 className="font-grotesk text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">{greeting()}</h1>
+        <p className="mt-1.5 text-muted-foreground">Here's what's happening with your tasks today.</p>
+        <figure className="mt-6 flex items-start gap-4 rounded-xl border border-border bg-card px-5 py-4">
           <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <Quote className="h-4 w-4" strokeWidth={1.75} />
           </span>
@@ -187,6 +195,34 @@ const Dashboard: React.FC = () => {
           </div>
         </figure>
       </motion.div>
+
+      {/* Pending AI suggestions: the product's differentiator, surfaced on home */}
+      {pendingCount > 0 && onNavigate && (
+        <motion.div
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={sectionTransition}
+          className="flex flex-col gap-4 rounded-xl border border-foreground/20 bg-foreground/[0.04] p-5 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-foreground text-background">
+              <Sparkles className="h-5 w-5" strokeWidth={1.75} />
+            </span>
+            <div>
+              <p className="font-grotesk text-lg font-medium text-foreground">
+                {pendingCount} suggestion{pendingCount !== 1 ? 's' : ''} waiting for your review
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Found in your messages and calendar. Accept the useful ones, dismiss the rest.
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => onNavigate('suggestions')} className="w-full shrink-0 sm:w-auto">
+            Review
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </motion.div>
+      )}
 
       {/* Stats Grid */}
       <motion.div
@@ -234,7 +270,7 @@ const Dashboard: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 100, damping: 20, delay: prefersReducedMotion ? 0 : 0.1 }}
         >
-          <Card className="transition-shadow duration-300 hover:shadow-[0_18px_40px_-22px_hsl(var(--primary)/0.5)]">
+          <Card>
             <CardContent className="p-6">
               <h2 className="font-grotesk text-lg font-semibold text-foreground">Upcoming tasks</h2>
               {upcomingTasks.length === 0 ? (
@@ -296,7 +332,7 @@ const Dashboard: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 100, damping: 20, delay: prefersReducedMotion ? 0 : 0.16 }}
         >
-          <Card className="transition-shadow duration-300 hover:shadow-[0_18px_40px_-22px_hsl(var(--primary)/0.5)]">
+          <Card>
             <CardContent className="p-6">
               <h2 className="font-grotesk text-lg font-semibold text-foreground">Recently completed</h2>
               {recentlyCompleted.length === 0 ? (
@@ -345,7 +381,7 @@ const Dashboard: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 100, damping: 20, delay: prefersReducedMotion ? 0 : 0.22 }}
       >
-      <Card className="transition-shadow duration-300 hover:shadow-[0_18px_40px_-22px_hsl(var(--primary)/0.5)]">
+      <Card>
         <CardContent className="p-6">
           <h2 className="font-grotesk text-lg font-semibold text-foreground">Quick overview</h2>
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">

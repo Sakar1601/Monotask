@@ -32,10 +32,10 @@ const TagsView: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
-      <div className="mb-8">
+    <div className="mx-auto max-w-3xl">
+      <div className="mb-6">
         {/* TopBar already renders "Tags" as the page h1. */}
-        <p className="text-base font-medium text-foreground">
+        <p className="text-[15px] text-muted-foreground">
           Manage your tags to organize tasks and habits
         </p>
       </div>

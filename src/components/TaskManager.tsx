@@ -446,7 +446,7 @@ const TaskManager: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 p-4 sm:p-6">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
         <TaskListSkeleton />
       </div>
@@ -454,14 +454,14 @@ const TaskManager: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
+    <div className="space-y-6">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           {/* TopBar already renders "Task Manager" as the page h1 - this
               stat line is the actual new information for this view, so it
               carries the weight instead of repeating the title. */}
-          <p className="text-base font-medium text-foreground">
-            <span className="tabular-nums">{tasks.length}</span> total tasks, <span className="tabular-nums">{tasks.filter(t => t.status === 'completed').length}</span> completed
+          <p className="text-[15px] text-muted-foreground">
+            <span className="tabular-nums font-medium text-foreground">{tasks.length}</span> total tasks, <span className="tabular-nums font-medium text-foreground">{tasks.filter(t => t.status === 'completed').length}</span> completed
           </p>
         </div>
         <Button onClick={handleAddNew} className="w-full sm:w-auto">
@@ -471,9 +471,9 @@ const TaskManager: React.FC = () => {
       </div>
 
       {/* AI Quick Add */}
-      <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 sm:flex-row">
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-2 pl-3 transition-colors focus-within:border-foreground/30 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Sparkles className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" strokeWidth={2} />
+          <Sparkles className="absolute left-1 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground" strokeWidth={2} />
           <Input
             ref={aiInputRef}
             placeholder="Try: lunch with Sam tomorrow 1pm, high priority"
@@ -481,11 +481,10 @@ const TaskManager: React.FC = () => {
             onChange={(e) => setAiInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAiQuickAdd()}
             disabled={isParsing}
-            className="pl-10"
+            className="h-11 border-0 bg-transparent pl-8 text-base shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
         </div>
         <Button
-          variant="outline"
           onClick={handleAiQuickAdd}
           disabled={isParsing || !aiInput.trim()}
           className="w-full sm:w-auto"
@@ -495,7 +494,7 @@ const TaskManager: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 sm:flex-row">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <div className="min-w-0 flex-1">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" strokeWidth={2} />

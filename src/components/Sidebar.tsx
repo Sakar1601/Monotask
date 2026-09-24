@@ -93,22 +93,22 @@ const SidebarNavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, isActiv
         transition={SPRING_SNAPPY}
         aria-current={isActive ? 'page' : undefined}
         className={cn(
-          'relative w-full flex items-center px-3 py-2.5 text-sm rounded-md',
+          'relative w-full flex items-center px-3 py-2 text-sm rounded-lg',
           isActive
-            ? 'text-brand font-semibold'
-            : 'text-muted-foreground font-medium hover:text-foreground hover:bg-accent'
+            ? 'text-foreground font-medium'
+            : 'text-muted-foreground font-medium hover:text-foreground hover:bg-accent/60'
         )}
       >
         {isActive && (
           <>
             <motion.span
               layoutId="sidebar-active-bg"
-              className="absolute inset-0 rounded-md bg-brand/10 shadow-[0_0_20px_-6px_hsl(var(--brand)/0.5)]"
+              className="absolute inset-0 rounded-md bg-accent"
               transition={shouldReduceMotion ? { duration: 0 } : SPRING_SNAPPY}
             />
             <motion.span
               layoutId="sidebar-active-indicator"
-              className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-brand shadow-[0_0_8px_hsl(var(--brand)/0.7)]"
+              className="absolute -left-3 top-2 bottom-2 w-0.5 rounded-full bg-foreground"
               transition={shouldReduceMotion ? { duration: 0 } : SPRING_SNAPPY}
             />
           </>
@@ -118,7 +118,7 @@ const SidebarNavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, isActiv
           className="relative z-10 mr-3 flex shrink-0"
         >
           <Icon
-            className={cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-brand' : 'text-muted-foreground')}
+            className={cn('h-[18px] w-[18px] shrink-0', isActive ? 'text-foreground' : 'text-muted-foreground')}
             strokeWidth={2}
           />
         </motion.span>
@@ -137,21 +137,39 @@ const SidebarNavItem: React.FC<NavItemProps> = ({ id, label, icon: Icon, isActiv
 };
 
 const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen = false, onClose, badges = {} }) => {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const shouldReduceMotion = !!useReducedMotion();
   const isDesktop = useIsDesktop();
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-    { id: 'calendar', label: 'Calendar', icon: Calendar },
-    { id: 'events', label: 'Events', icon: CalendarClock },
-    { id: 'habits', label: 'Habits', icon: Repeat },
-    { id: 'tags', label: 'Tags', icon: Tag },
-    { id: 'progress', label: 'Progress', icon: BarChart3 },
-    { id: 'suggestions', label: 'Suggestions', icon: Sparkles },
-    { id: 'settings', label: 'Settings', icon: Settings },
+  const menuGroups = [
+    {
+      label: 'Plan',
+      items: [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+        { id: 'calendar', label: 'Calendar', icon: Calendar },
+        { id: 'events', label: 'Events', icon: CalendarClock },
+        { id: 'habits', label: 'Habits', icon: Repeat },
+      ],
+    },
+    {
+      label: 'Insights',
+      items: [
+        { id: 'suggestions', label: 'Suggestions', icon: Sparkles },
+        { id: 'progress', label: 'Progress', icon: BarChart3 },
+      ],
+    },
+    {
+      label: 'Manage',
+      items: [
+        { id: 'tags', label: 'Tags', icon: Tag },
+        { id: 'settings', label: 'Settings', icon: Settings },
+      ],
+    },
   ];
+
+  const displayName = user?.is_anonymous ? 'Guest' : (user?.email?.split('@')[0] ?? 'Account');
+  const initial = displayName.charAt(0).toUpperCase();
 
   const handleSelect = (view: string) => {
     onViewChange(view);
@@ -184,10 +202,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen = f
         className="fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border flex flex-col h-screen shrink-0 md:static md:sticky md:top-0"
       >
         {/* Logo */}
-        <div className="p-6 border-b border-border shrink-0 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold font-grotesk tracking-tight text-foreground">Monotask</h1>
-            <p className="text-sm text-muted-foreground">Minimal productivity</p>
+        <div className="h-16 px-5 border-b border-border shrink-0 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground">
+              <CheckSquare className="h-[18px] w-[18px] text-background" />
+            </span>
+            <h1 className="text-lg font-semibold font-grotesk tracking-tight text-foreground">Monotask</h1>
           </div>
           <button
             onClick={onClose}
@@ -199,37 +219,56 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen = f
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 overflow-y-auto min-h-0">
-          <ul className="space-y-0.5">
-            {menuItems.map((item, index) => (
-              <SidebarNavItem
-                key={item.id}
-                id={item.id}
-                label={item.label}
-                icon={item.icon}
-                isActive={currentView === item.id}
-                badge={badges[item.id]}
-                index={index}
-                shouldReduceMotion={shouldReduceMotion}
-                onSelect={handleSelect}
-              />
-            ))}
-          </ul>
+        <nav className="flex-1 px-3 py-4 overflow-y-auto min-h-0 space-y-6">
+          {menuGroups.map((group, gi) => (
+            <div key={group.label}>
+              <p className="px-3 mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
+                {group.label}
+              </p>
+              <ul className="space-y-0.5">
+                {group.items.map((item, index) => (
+                  <SidebarNavItem
+                    key={item.id}
+                    id={item.id}
+                    label={item.label}
+                    icon={item.icon}
+                    isActive={currentView === item.id}
+                    badge={badges[item.id]}
+                    index={gi * 5 + index}
+                    shouldReduceMotion={shouldReduceMotion}
+                    onSelect={handleSelect}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
 
         <Separator />
 
         {/* User Section */}
         <div className="p-3 shrink-0">
-          <motion.button
-            onClick={signOut}
-            whileTap={shouldReduceMotion ? undefined : { scale: 0.97 }}
-            transition={SPRING_SNAPPY}
-            className="w-full flex items-center px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors duration-150"
-          >
-            <LogOut className="mr-3 h-[18px] w-[18px] text-muted-foreground" strokeWidth={2} />
-            Sign Out
-          </motion.button>
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-background/50 p-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-sm font-semibold text-background">
+              {initial}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {user?.is_anonymous ? 'Guest account' : user?.email}
+              </p>
+            </div>
+            <motion.button
+              onClick={signOut}
+              whileTap={shouldReduceMotion ? undefined : { scale: 0.92 }}
+              transition={SPRING_SNAPPY}
+              aria-label="Sign out"
+              title="Sign out"
+              className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" strokeWidth={2} />
+            </motion.button>
+          </div>
         </div>
       </motion.aside>
     </>
