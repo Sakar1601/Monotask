@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,6 +11,7 @@ import { useTasks, Task } from '@/hooks/useTasks';
 import { cn } from '@/lib/utils';
 import TagSelector from './TagSelector';
 import TimeInput from './TimeInput';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 
 interface TaskDraft {
   title: string;
@@ -149,15 +150,18 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="mx-4 max-h-[90vh] max-w-md overflow-y-auto sm:mx-auto">
+      <DialogContent className="mx-4 max-h-[90vh] max-w-lg overflow-y-auto pb-0 sm:mx-auto">
         <DialogHeader>
           <DialogTitle className="font-grotesk">
             {task ? 'Edit task' : 'Create task'}
           </DialogTitle>
+          <DialogDescription>
+            {task ? 'Update the details below.' : 'Add a task with an optional due date and repeat.'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <motion.div custom={0} initial="hidden" animate="visible" variants={fieldVariants}>
-            <Label htmlFor="task-title" className="sr-only">Title</Label>
+            <Label htmlFor="task-title" className="mb-1.5 block text-sm font-medium text-foreground">Title</Label>
             <Input
               id="task-title"
               placeholder="Task title"
@@ -173,7 +177,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
           </motion.div>
 
           <motion.div custom={1} initial="hidden" animate="visible" variants={fieldVariants}>
-            <Label htmlFor="task-description" className="sr-only">Description</Label>
+            <Label htmlFor="task-description" className="mb-1.5 block text-sm font-medium text-foreground">Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
             <Textarea
               id="task-description"
               placeholder="Description (optional)"
@@ -184,9 +188,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
             />
           </motion.div>
 
-          <motion.div custom={2} initial="hidden" animate="visible" variants={fieldVariants} className="grid grid-cols-2 gap-2">
+          <motion.div custom={2} initial="hidden" animate="visible" variants={fieldVariants} className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="task-due-date" className="sr-only">Due date</Label>
+              <Label htmlFor="task-due-date" className="mb-1.5 block text-sm font-medium text-foreground">Due date</Label>
               <Input
                 id="task-due-date"
                 type="date"
@@ -196,6 +200,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
               />
             </div>
             <div>
+              <Label className="mb-1.5 block text-sm font-medium text-foreground">Time</Label>
               <TimeInput
                 value={formData.due_time}
                 onChange={(value) => setFormData(prev => ({ ...prev, due_time: value }))}
@@ -204,23 +209,21 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
           </motion.div>
 
           <motion.div custom={3} initial="hidden" animate="visible" variants={fieldVariants}>
-            <Label className="mb-2 block text-sm font-medium text-foreground">Priority</Label>
-            <Select value={formData.priority} onValueChange={(value: 'low' | 'medium' | 'high') => setFormData(prev => ({ ...prev, priority: value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="mb-1.5 block text-sm font-medium text-foreground">Priority</Label>
+            <SegmentedControl
+              aria-label="Priority"
+              value={formData.priority}
+              onChange={(value) => setFormData(prev => ({ ...prev, priority: value }))}
+              options={[
+                { value: 'low', label: 'Low' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'high', label: 'High' },
+              ]}
+            />
           </motion.div>
 
           <motion.div custom={4} initial="hidden" animate="visible" variants={fieldVariants}>
-            <Label className="mb-2 block text-sm font-medium text-foreground">
-              Tag
-            </Label>
+            <Label className="mb-1.5 block text-sm font-medium text-foreground">Tag</Label>
             <TagSelector
               value={formData.tag_id}
               onChange={(value) => setFormData(prev => ({ ...prev, tag_id: value }))}
@@ -228,7 +231,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
           </motion.div>
 
           <motion.div custom={5} initial="hidden" animate="visible" variants={fieldVariants}>
-            <Label className="mb-2 block text-sm font-medium text-foreground">Repeat</Label>
+            <Label className="mb-1.5 block text-sm font-medium text-foreground">Repeat</Label>
             <Select value={formData.repeat_type} onValueChange={(value: 'none' | 'daily' | 'weekly' | 'monthly') => setFormData(prev => ({ ...prev, repeat_type: value }))}>
               <SelectTrigger>
                 <SelectValue placeholder="Repeat" />
@@ -242,7 +245,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, task, prefilledD
             </Select>
           </motion.div>
 
-          <div className="flex flex-col-reverse justify-end gap-2 pt-4 sm:flex-row">
+          <div className="-mx-6 mt-2 flex flex-col-reverse justify-end gap-2 border-t border-border bg-muted/30 px-6 py-4 sm:flex-row">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>

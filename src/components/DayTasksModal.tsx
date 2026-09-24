@@ -21,21 +21,6 @@ interface DayTasksModalProps {
   onToggleComplete: (item: RecurringTaskInstance) => void;
 }
 
-// Floating-layer glass treatment, matching EventModal's recipe: backdrop
-// blur + inner highlight via inline style (guaranteed to win over the
-// shared ui/dialog.tsx primitive's opaque background class), with a solid
-// fallback for prefers-reduced-transparency.
-const useReducedTransparency = () => {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-transparency: reduce)');
-    setReduced(mq.matches);
-    const handler = () => setReduced(mq.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-  return reduced;
-};
 
 const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, tasks, onToggleComplete }) => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -44,7 +29,6 @@ const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, ta
   const { deleteTask, isUpdating, isDeleting } = useTasks();
   const { settings } = useSettings();
   const prefersReducedMotion = useReducedMotion();
-  const reducedTransparency = useReducedTransparency();
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
@@ -97,14 +81,7 @@ const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, ta
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent
-          className="max-h-[80vh] max-w-2xl overflow-y-auto shadow-[inset_0_1px_0_0_hsl(var(--foreground)/0.06)]"
-          style={
-            reducedTransparency
-              ? undefined
-              : { backgroundColor: 'hsl(var(--background) / 0.75)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }
-          }
-        >
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <motion.div
             initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
