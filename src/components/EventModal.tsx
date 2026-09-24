@@ -1,27 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useEvents, Event } from '@/hooks/useEvents';
 import TagSelector from './TagSelector';
-
-// Floating-layer glass treatment: backdrop blur + inner border/highlight,
-// with a solid fallback for prefers-reduced-transparency. Applied via
-// inline style (not a className override) so it reliably wins over the
-// shared ui/dialog.tsx primitive's own opaque background class.
-const useReducedTransparency = () => {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-transparency: reduce)');
-    setReduced(mq.matches);
-    const handler = () => setReduced(mq.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-  return reduced;
-};
 
 const fieldListVariants = {
   hidden: {},
@@ -115,30 +99,25 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
 
   const syncedFromLabel = event?.sync_connection_id ? (event.sync_provider === 'microsoft' ? 'Outlook' : 'Google') : null;
   const prefersReducedMotion = useReducedMotion();
-  const reducedTransparency = useReducedTransparency();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent
-        className="mx-4 max-h-[90vh] max-w-md overflow-y-auto shadow-[inset_0_1px_0_0_hsl(var(--foreground)/0.06)] sm:mx-auto"
-        style={
-          reducedTransparency
-            ? undefined
-            : { backgroundColor: 'hsl(var(--background) / 0.75)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }
-        }
-      >
+      <DialogContent className="mx-4 max-h-[90vh] max-w-lg overflow-y-auto pb-0 sm:mx-auto">
         <motion.div
           initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.92 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'spring', stiffness: 300, damping: 26 }}
         >
-        <DialogHeader>
+        <DialogHeader className="mb-5">
           <DialogTitle>
             {event ? 'Edit Event' : 'Create Event'}
             {syncedFromLabel && (
               <span className="ml-2 text-xs font-normal text-primary">(from {syncedFromLabel})</span>
             )}
           </DialogTitle>
+          <DialogDescription>
+            {event ? 'Update the details below.' : 'Add a meeting or event to your calendar.'}
+          </DialogDescription>
         </DialogHeader>
         <motion.form
           onSubmit={handleSubmit}
@@ -148,7 +127,9 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
           animate="show"
         >
           <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants}>
+            <label htmlFor="event-title" className="mb-1.5 block text-sm font-medium text-foreground">Title</label>
             <Input
+              id="event-title"
               placeholder="Event title"
               value={formData.title}
               onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
@@ -157,8 +138,10 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
           </motion.div>
 
           <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants}>
+            <label htmlFor="event-description" className="mb-1.5 block text-sm font-medium text-foreground">Description <span className="font-normal text-muted-foreground">(optional)</span></label>
             <Textarea
-              placeholder="Description (optional)"
+              id="event-description"
+              placeholder="Add details"
               value={formData.description}
               onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
               rows={3}
@@ -166,9 +149,9 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
             />
           </motion.div>
 
-          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants} className="grid grid-cols-2 gap-2">
+          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants} className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">Start</label>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Start</label>
               <Input
                 type="datetime-local"
                 value={formData.start_time}
@@ -178,7 +161,7 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">End (optional)</label>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">End <span className="font-normal text-muted-foreground">(optional)</span></label>
               <Input
                 type="datetime-local"
                 value={formData.end_time}
@@ -189,30 +172,34 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
           </motion.div>
 
           <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants}>
+            <label htmlFor="event-location" className="mb-1.5 block text-sm font-medium text-foreground">Location <span className="font-normal text-muted-foreground">(optional)</span></label>
             <Input
-              placeholder="Location (optional)"
+              id="event-location"
+              placeholder="Add a place"
               value={formData.location}
               onChange={(e) => setFormData((prev) => ({ ...prev, location: e.target.value }))}
             />
           </motion.div>
 
           <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants}>
+            <label htmlFor="event-link" className="mb-1.5 block text-sm font-medium text-foreground">Meeting link <span className="font-normal text-muted-foreground">(optional)</span></label>
             <Input
-              placeholder="Meeting link (optional)"
+              id="event-link"
+              placeholder="https://"
               value={formData.meeting_url}
               onChange={(e) => setFormData((prev) => ({ ...prev, meeting_url: e.target.value }))}
             />
           </motion.div>
 
           <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants}>
-            <label className="mb-2 block text-sm font-medium text-foreground">Tag</label>
+            <label className="mb-1.5 block text-sm font-medium text-foreground">Tag</label>
             <TagSelector
               value={formData.tag_id}
               onChange={(value) => setFormData((prev) => ({ ...prev, tag_id: value }))}
             />
           </motion.div>
 
-          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants} className="flex flex-col-reverse justify-end gap-2 pt-4 sm:flex-row">
+          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants} className="-mx-6 mt-2 flex flex-col-reverse justify-end gap-2 border-t border-border bg-muted/30 px-6 py-4 sm:flex-row">
             <Button
               type="button"
               variant="outline"

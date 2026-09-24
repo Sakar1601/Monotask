@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useHabits, Habit } from '@/hooks/useHabits';
 import { cn } from '@/lib/utils';
 import TagSelector from './TagSelector';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 
 interface HabitModalProps {
   isOpen: boolean;
@@ -88,15 +89,18 @@ const HabitModal: React.FC<HabitModalProps> = ({ isOpen, onClose, habit }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="mx-4 max-h-[90vh] max-w-md overflow-y-auto sm:mx-auto">
+      <DialogContent className="mx-4 max-h-[90vh] max-w-lg overflow-y-auto pb-0 sm:mx-auto">
         <DialogHeader>
           <DialogTitle className="font-grotesk">
             {habit ? 'Edit habit' : 'Create habit'}
           </DialogTitle>
+          <DialogDescription>
+            {habit ? 'Update the details below.' : 'Pick something you want to do regularly, then log it each day.'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <motion.div custom={0} initial="hidden" animate="visible" variants={fieldVariants}>
-            <Label htmlFor="habit-name" className="sr-only">Habit name</Label>
+            <Label htmlFor="habit-name" className="mb-1.5 block text-sm font-medium text-foreground">Habit name</Label>
             <Input
               id="habit-name"
               placeholder="Habit name"
@@ -112,7 +116,7 @@ const HabitModal: React.FC<HabitModalProps> = ({ isOpen, onClose, habit }) => {
           </motion.div>
 
           <motion.div custom={1} initial="hidden" animate="visible" variants={fieldVariants}>
-            <Label htmlFor="habit-description" className="sr-only">Description</Label>
+            <Label htmlFor="habit-description" className="mb-1.5 block text-sm font-medium text-foreground">Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
             <Textarea
               id="habit-description"
               placeholder="Description (optional)"
@@ -124,22 +128,22 @@ const HabitModal: React.FC<HabitModalProps> = ({ isOpen, onClose, habit }) => {
           </motion.div>
 
           <motion.div custom={2} initial="hidden" animate="visible" variants={fieldVariants}>
-            <Label className="mb-2 block text-sm font-medium text-foreground">Frequency</Label>
-            <Select value={formData.frequency} onValueChange={(value: 'daily' | 'weekly' | 'monthly') => setFormData(prev => ({ ...prev, frequency: value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Frequency" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="mb-1.5 block text-sm font-medium text-foreground">Frequency</Label>
+            <SegmentedControl
+              aria-label="Frequency"
+              value={formData.frequency}
+              onChange={(value) => setFormData(prev => ({ ...prev, frequency: value }))}
+              options={[
+                { value: 'daily', label: 'Daily' },
+                { value: 'weekly', label: 'Weekly' },
+                { value: 'monthly', label: 'Monthly' },
+              ]}
+            />
           </motion.div>
 
           <motion.div custom={3} initial="hidden" animate="visible" variants={fieldVariants}>
-            <Label htmlFor="habit-time" className="mb-2 block text-sm font-medium text-foreground">
-              Preferred time (optional)
+            <Label htmlFor="habit-time" className="mb-1.5 block text-sm font-medium text-foreground">
+              Preferred time <span className="font-normal text-muted-foreground">(optional)</span>
             </Label>
             <Input
               id="habit-time"
@@ -151,16 +155,14 @@ const HabitModal: React.FC<HabitModalProps> = ({ isOpen, onClose, habit }) => {
           </motion.div>
 
           <motion.div custom={4} initial="hidden" animate="visible" variants={fieldVariants}>
-            <Label className="mb-2 block text-sm font-medium text-foreground">
-              Tag
-            </Label>
+            <Label className="mb-1.5 block text-sm font-medium text-foreground">Tag</Label>
             <TagSelector
               value={formData.tag_id}
               onChange={(value) => setFormData(prev => ({ ...prev, tag_id: value }))}
             />
           </motion.div>
 
-          <div className="flex justify-end space-x-2 pt-4">
+          <div className="-mx-6 mt-2 flex flex-col-reverse justify-end gap-2 border-t border-border bg-muted/30 px-6 py-4 sm:flex-row">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>

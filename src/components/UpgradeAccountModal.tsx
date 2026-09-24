@@ -59,7 +59,7 @@ const UpgradeAccountModal = ({ open, onOpenChange }: UpgradeAccountModalProps) =
           fade (the shared Dialog primitive's own animate-in classes are left intact
           to avoid touching a component other surfaces also depend on). */}
       <DialogContent
-        className="sm:max-w-md !duration-300 data-[state=open]:[animation-timing-function:cubic-bezier(0.34,1.56,0.64,1)] bg-background/90 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 [@media(prefers-reduced-transparency:reduce)]:bg-background [@media(prefers-reduced-transparency:reduce)]:backdrop-blur-0 border border-border/80 shadow-2xl shadow-brand/5"
+        className="sm:max-w-md !duration-300 data-[state=open]:[animation-timing-function:cubic-bezier(0.34,1.56,0.64,1)]"
       >
         <DialogHeader>
           <div className="flex items-center gap-2.5">

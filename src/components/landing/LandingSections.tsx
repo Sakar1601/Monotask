@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { ReactNode, useEffect, useRef } from 'react';
+import { motion, useReducedMotion, useInView, useMotionValue, useTransform, animate } from 'framer-motion';
 import {
   Calendar,
   Mail,
@@ -52,6 +52,40 @@ export function Eyebrow({ children, inverted }: { children: ReactNode; inverted?
   );
 }
 
+export function CountUp({ from = 0, to, suffix = '' }: { from?: number; to: number; suffix?: string }) {
+  const reduce = useReducedMotion();
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, margin: '-80px' });
+  const value = useMotionValue(reduce ? to : from);
+  const text = useTransform(value, (v) => `${Math.round(v)}${suffix}`);
+  useEffect(() => {
+    if (!inView || reduce) return;
+    const controls = animate(value, to, { duration: 1.4, ease: [0.16, 1, 0.3, 1] });
+    return () => controls.stop();
+  }, [inView, reduce, value, to]);
+  return <motion.span ref={ref}>{text}</motion.span>;
+}
+
+function Spotlight({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      onMouseMove={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.style.setProperty('--sx', `${e.clientX - r.left}px`);
+        e.currentTarget.style.setProperty('--sy', `${e.clientY - r.top}px`);
+      }}
+      className={`group relative overflow-hidden ${className ?? ''}`}
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{ background: 'radial-gradient(260px circle at var(--sx, 50%) var(--sy, 50%), hsl(var(--foreground) / 0.08), transparent 70%)' }}
+      />
+      <div className="relative">{children}</div>
+    </div>
+  );
+}
+
 // Typographic wordmarks on purpose: no brand-mark reproductions, just the
 // products the app genuinely talks to.
 const WORKS_WITH = [
@@ -70,13 +104,21 @@ export function WorksWithStrip() {
       <p className="mb-6 text-center font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
         Connects with the tools you already use
       </p>
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-6">
-        {WORKS_WITH.map(({ icon: Icon, label }) => (
-          <span key={label} className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <Icon className="h-4 w-4" strokeWidth={1.75} />
-            {label}
-          </span>
-        ))}
+      <div className="mx-auto max-w-5xl overflow-hidden px-6 [mask-image:linear-gradient(90deg,transparent,black_12%,black_88%,transparent)] motion-reduce:[mask-image:none]">
+        <div className="flex w-max animate-marquee gap-x-12 hover:[animation-play-state:paused] motion-reduce:w-auto motion-reduce:flex-wrap motion-reduce:justify-center motion-reduce:gap-y-4">
+          {[0, 1].map((copy) =>
+            WORKS_WITH.map(({ icon: Icon, label }) => (
+              <span
+                key={`${copy}-${label}`}
+                aria-hidden={copy === 1 ? true : undefined}
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap text-sm font-medium text-muted-foreground ${copy === 1 ? 'motion-reduce:hidden' : ''}`}
+              >
+                <Icon className="h-4 w-4" strokeWidth={1.75} />
+                {label}
+              </span>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
@@ -119,8 +161,32 @@ export function ProblemSection() {
           {PROBLEMS.map(({ icon: Icon, problem, fix }, i) => (
             <Reveal key={problem} delay={i * 0.08} className="bg-foreground p-8">
               <Icon className="h-6 w-6 text-background/70" strokeWidth={1.5} />
-              <p className="mt-6 font-grotesk text-xl font-medium">{problem}</p>
-              <p className="mt-3 text-background/60">{fix}</p>
+              <motion.p
+                className="relative mt-6 inline-block font-grotesk text-xl font-medium"
+                initial={{ opacity: 1 }}
+                whileInView={{ opacity: 0.55 }}
+                viewport={{ once: true, margin: '-80px' }}
+                transition={{ duration: 0.4, delay: 0.9 + i * 0.15 }}
+              >
+                {problem}
+                <motion.span
+                  aria-hidden
+                  className="absolute left-0 right-0 top-1/2 h-px origin-left bg-background"
+                  initial={{ scaleX: 0 }}
+                  whileInView={{ scaleX: 1 }}
+                  viewport={{ once: true, margin: '-80px' }}
+                  transition={{ duration: 0.6, delay: 0.5 + i * 0.15, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </motion.p>
+              <motion.p
+                className="mt-3 text-background"
+                initial={{ opacity: 0.35 }}
+                whileInView={{ opacity: 0.85 }}
+                viewport={{ once: true, margin: '-80px' }}
+                transition={{ duration: 0.5, delay: 1.0 + i * 0.15 }}
+              >
+                {fix}
+              </motion.p>
             </Reveal>
           ))}
         </div>
@@ -131,9 +197,9 @@ export function ProblemSection() {
 
 // Every figure here is a fact about how the product is built, not a
 // usage statistic.
-const TRUST = [
-  { big: '0', label: 'actions taken without your approval', note: 'Every AI result is a draft or pending suggestion.' },
-  { big: '10 min', label: 'background sync cadence', note: 'Calendar and tasks stay current on their own.' },
+const TRUST: { big: ReactNode; label: string; note: string }[] = [
+  { big: <CountUp from={9} to={0} />, label: 'actions taken without your approval', note: 'Every AI result is a draft or pending suggestion.' },
+  { big: <><CountUp to={10} /> min</>, label: 'background sync cadence', note: 'Calendar and tasks stay current on their own.' },
   { big: 'Opt-in', label: 'message scanning', note: 'Off until you switch it on; disconnect any time.' },
   { big: 'Read-only', label: 'Gmail access', note: 'Suggestions never send, delete, or edit your mail.' },
 ];
@@ -186,12 +252,14 @@ export function FeatureGrid() {
         </Reveal>
         <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map(({ icon: Icon, title, desc }, i) => (
-            <Reveal key={title} delay={(i % 3) * 0.05} className="bg-background p-7">
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted">
-                <Icon className="h-5 w-5 text-foreground" strokeWidth={1.5} />
-              </span>
-              <p className="mt-5 font-grotesk text-lg font-medium text-foreground">{title}</p>
-              <p className="mt-2 text-sm text-muted-foreground">{desc}</p>
+            <Reveal key={title} delay={(i % 3) * 0.05} className="bg-background">
+              <Spotlight className="h-full p-7">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:rotate-3">
+                  <Icon className="h-5 w-5 text-foreground" strokeWidth={1.5} />
+                </span>
+                <p className="mt-5 font-grotesk text-lg font-medium text-foreground">{title}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{desc}</p>
+              </Spotlight>
             </Reveal>
           ))}
         </div>
@@ -220,7 +288,16 @@ export function HowItWorks() {
           {STEPS.map(({ n, title, desc }, i) => (
             <Reveal key={n} delay={i * 0.08}>
               <p className="font-mono text-sm text-muted-foreground">{n}</p>
-              <div className="my-4 h-px bg-border" />
+              <div className="relative my-4 h-px bg-border">
+                <motion.div
+                  aria-hidden
+                  className="absolute inset-0 origin-left bg-foreground"
+                  initial={{ scaleX: 0 }}
+                  whileInView={{ scaleX: 1 }}
+                  viewport={{ once: true, margin: '-80px' }}
+                  transition={{ duration: 0.9, delay: 0.2 + i * 0.25, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </div>
               <p className="font-grotesk text-2xl font-medium text-foreground">{title}</p>
               <p className="mt-2 text-muted-foreground">{desc}</p>
             </Reveal>

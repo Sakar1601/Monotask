@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect, useState } from 'react';
-import { motion, useReducedMotion, useScroll, useMotionValueEvent } from 'framer-motion';
-import { CheckSquare, ArrowRight, Sparkles, Check } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { motion, useReducedMotion, useScroll, useMotionValueEvent, useTransform } from 'framer-motion';
+import { CheckSquare, ArrowRight, Sparkles, Check, Mail, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MagneticButton } from '@/components/landing/MagneticButton';
 import { GrainOverlay } from '@/components/landing/GrainOverlay';
@@ -22,6 +22,8 @@ import {
   LandingFooter,
 } from '@/components/landing/LandingSections';
 
+const HEADLINE = ['Your', 'inbox', 'and', 'calendars,', 'turned', 'into', 'a', 'plan.'];
+
 const NAV_LINKS = [
   { href: '#ai', label: 'AI' },
   { href: '#integrations', label: 'Integrations' },
@@ -29,12 +31,50 @@ const NAV_LINKS = [
   { href: '#faq', label: 'FAQ' },
 ];
 
+function FloatChip({
+  children,
+  icon,
+  className,
+  delay,
+  drift,
+}: {
+  children: React.ReactNode;
+  icon: React.ReactNode;
+  className?: string;
+  delay: number;
+  drift: number;
+}) {
+  const reduce = useReducedMotion();
+  return (
+    <motion.div
+      aria-hidden
+      className={`pointer-events-none absolute z-10 hidden lg:block ${className ?? ''}`}
+      initial={reduce ? false : { opacity: 0, scale: 0.85, y: 12 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.6, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <motion.div
+        animate={reduce ? undefined : { y: [0, drift, 0] }}
+        transition={{ duration: 5 + Math.abs(drift) / 4, repeat: Infinity, ease: 'easeInOut', delay }}
+        className="flex items-center gap-2 rounded-full border border-border bg-card/90 px-3.5 py-2 text-xs font-medium text-foreground shadow-[0_12px_40px_-12px_hsl(var(--foreground)/0.35)] backdrop-blur"
+      >
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-background">{icon}</span>
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 const Landing = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const prefersReducedMotion = useReducedMotion();
-  const { scrollY } = useScroll();
+  const { scrollY, scrollYProgress } = useScroll();
+  const windowRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress: tiltProgress } = useScroll({ target: windowRef, offset: ['start end', 'start 25%'] });
+  const tiltRotate = useTransform(tiltProgress, [0, 1], [18, 0]);
+  const tiltScale = useTransform(tiltProgress, [0, 1], [0.9, 1]);
 
   useEffect(() => {
     if (!loading && user) navigate('/app');
@@ -65,6 +105,14 @@ const Landing = () => {
   return (
     <div className="min-h-[100dvh] bg-background overflow-x-hidden">
       <GrainOverlay />
+
+      {!prefersReducedMotion && (
+        <motion.div
+          aria-hidden
+          style={{ scaleX: scrollYProgress }}
+          className="fixed left-0 right-0 top-0 z-[60] h-0.5 origin-left bg-foreground"
+        />
+      )}
 
       {/* Navigation */}
       <nav
@@ -113,12 +161,22 @@ const Landing = () => {
               AI capture, plus two-way Google and Microsoft sync
             </span>
           </motion.div>
-          <motion.h1
-            {...heroIn(0.08)}
-            className="mx-auto mt-7 max-w-4xl font-grotesk text-5xl font-semibold leading-[1.02] tracking-[-0.045em] text-foreground sm:text-7xl"
-          >
-            Your inbox and calendars, turned into a plan.
-          </motion.h1>
+          <h1 className="mx-auto mt-7 max-w-4xl text-balance font-grotesk text-5xl font-semibold leading-[1.02] tracking-[-0.045em] text-foreground sm:text-7xl">
+            {HEADLINE.map((word, i) => (
+              <span key={i}>
+                <span className="inline-block overflow-hidden pb-[0.12em] align-top">
+                  <motion.span
+                    className="inline-block"
+                    initial={prefersReducedMotion ? false : { y: '110%', opacity: 0, filter: 'blur(8px)' }}
+                    animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
+                    transition={{ duration: 0.8, delay: 0.1 + i * 0.07, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    {word}
+                  </motion.span>
+                </span>{' '}
+              </span>
+            ))}
+          </h1>
           <motion.p {...heroIn(0.16)} className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground sm:text-xl">
             Monotask finds the tasks and clashes hiding in your email and meetings, keeps Google and
             Microsoft in sync, and never acts without your approval.
@@ -138,10 +196,26 @@ const Landing = () => {
         </div>
 
         <motion.div {...heroIn(0.36)} className="relative mx-auto mt-16 max-w-5xl">
-          <div className="max-h-[420px] overflow-hidden sm:max-h-[540px]">
-            <ProductWindow />
+          <div ref={windowRef} className="[perspective:1400px]">
+            <motion.div
+              style={prefersReducedMotion ? undefined : { rotateX: tiltRotate, scale: tiltScale, transformOrigin: '50% 0%' }}
+              className="max-h-[420px] overflow-hidden sm:max-h-[540px]"
+            >
+              <ProductWindow />
+            </motion.div>
           </div>
           <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-background to-transparent" />
+
+          {/* Floating status chips: the live-product story in motion */}
+          <FloatChip className="-left-4 top-24 xl:-left-28" delay={1.4} drift={9} icon={<Check className="h-3.5 w-3.5" />}>
+            Synced with Google Calendar
+          </FloatChip>
+          <FloatChip className="-right-4 top-36 xl:-right-28" delay={1.8} drift={-8} icon={<Mail className="h-3.5 w-3.5" />}>
+            New suggestion from Gmail
+          </FloatChip>
+          <FloatChip className="-left-2 top-[21rem] xl:-left-20" delay={2.2} drift={7} icon={<CalendarClock className="h-3.5 w-3.5" />}>
+            Meeting overlap found
+          </FloatChip>
         </motion.div>
       </section>
 
@@ -199,7 +273,7 @@ const Landing = () => {
         <Reveal className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl bg-foreground px-8 py-16 text-center sm:py-24">
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(hsl(var(--background))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--background))_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_60%_70%_at_50%_50%,black,transparent)]"
+            className="animate-grid-drift pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(hsl(var(--background))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--background))_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_60%_70%_at_50%_50%,black,transparent)]"
           />
           <div className="relative">
             <h2 className="text-balance mx-auto max-w-3xl font-grotesk text-4xl font-semibold tracking-[-0.03em] text-background sm:text-5xl">
@@ -208,14 +282,19 @@ const Landing = () => {
             <p className="mx-auto mt-5 max-w-md text-lg text-background/60">
               Free for personal use. No credit card, no trial clock.
             </p>
-            <MagneticButton
-              size="lg"
-              onClick={goToSignup}
-              className="group mt-9 bg-background px-9 text-foreground hover:bg-background/90"
-            >
-              Get started free
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </MagneticButton>
+            <span className="relative mt-9 inline-flex">
+              {!prefersReducedMotion && (
+                <span aria-hidden className="absolute inset-0 animate-ping rounded-md bg-background/25 [animation-duration:2.8s]" />
+              )}
+              <MagneticButton
+                size="lg"
+                onClick={goToSignup}
+                className="group relative bg-background px-9 text-foreground hover:bg-background/90"
+              >
+                Get started free
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </MagneticButton>
+            </span>
           </div>
         </Reveal>
       </section>
