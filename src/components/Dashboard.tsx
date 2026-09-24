@@ -189,7 +189,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, onAddTask, onOpenPale
         animate={{ opacity: 1, y: 0 }}
         transition={sectionTransition}
       >
-        <h1 className="font-grotesk text-3xl font-semibold tracking-[-0.03em] text-foreground sm:text-4xl">{greeting()}</h1>
+        <h2 className="font-grotesk text-2xl font-semibold tracking-[-0.03em] text-foreground sm:text-3xl">{greeting()}</h2>
         <p className="mt-1.5 text-muted-foreground">Here's what's happening with your tasks today.</p>
         {onNavigate && onAddTask && onOpenPalette && (
           <div className="mt-6">

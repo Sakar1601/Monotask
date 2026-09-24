@@ -202,12 +202,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen = f
         className="fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border flex flex-col h-screen shrink-0 md:static md:sticky md:top-0"
       >
         {/* Logo */}
-        <div className="h-16 px-5 border-b border-border shrink-0 flex items-center justify-between">
+        <div className="h-16 sm:h-24 px-5 border-b border-border shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground">
-              <CheckSquare className="h-[18px] w-[18px] text-background" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground">
+              <CheckSquare className="h-5 w-5 text-background" />
             </span>
-            <h1 className="text-lg font-semibold font-grotesk tracking-tight text-foreground">Monotask</h1>
+            <p className="text-xl font-semibold font-grotesk tracking-tight text-foreground">Monotask</p>
           </div>
           <button
             onClick={onClose}
