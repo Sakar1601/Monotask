@@ -41,7 +41,7 @@ const SuggestionsView: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 p-6">
+      <div className="space-y-4">
         <Skeleton className="h-6 w-32" />
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-24 w-full" />
@@ -50,9 +50,12 @@ const SuggestionsView: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 p-6">
+    <div className="mx-auto max-w-3xl space-y-4">
+      <p className="text-[15px] text-muted-foreground">
+        Tasks and meeting fixes found in your connected accounts. Nothing happens until you accept.
+      </p>
       {suggestions.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-16 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-16 text-center">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <Lightbulb className="h-6 w-6" strokeWidth={2} />
           </div>
@@ -71,7 +74,7 @@ const SuggestionsView: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={reduceMotion ? undefined : { opacity: 0, x: -24, scale: 0.97 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/40"
+            className="rounded-xl border border-border bg-card p-5 transition-colors hover:bg-accent/40"
           >
             {suggestion.kind === 'task' ? (
               (() => {

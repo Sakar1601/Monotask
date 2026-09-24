@@ -178,6 +178,18 @@ The marketing site (Persuade) is a single scrolling column, `max-w-6xl`/`max-w-5
 
 Asymmetric layouts (the hero's split, feature spotlights) collapse to a strict single column below `md`, always with an explicit mobile treatment declared alongside the desktop one, never left to "Tailwind will handle it."
 
+### App Shell & Page Layout
+Every app page renders inside one shared container owned by the shell (`Index.tsx`): `mx-auto w-full max-w-6xl` with `p-4 sm:p-6 lg:p-8`. Individual views never set their own outer padding or max-width, which is what keeps left edges aligned as you move between pages. Form-like pages (Settings, Tags, Suggestions) narrow themselves to `max-w-3xl` inside that container because forms read badly stretched across 1150px.
+
+- **Sidebar:** logo tile plus wordmark, three labelled groups (Plan: Dashboard, Tasks, Calendar, Events, Habits; Insights: Suggestions, Progress; Manage: Tags, Settings) with mono uppercase group labels, a quiet `bg-accent` active pill with a thin left indicator (no glow), and a user chip at the bottom (avatar initial, name, email or "Guest account", sign-out icon).
+- **Page intro line:** each view starts with one muted description line (`text-[15px] text-muted-foreground`) beside its primary action. The single page `<h1>` stays in the top bar.
+- **Stat cards:** mono uppercase label, large tight-tracked numeral (`text-4xl`), bordered icon tile. Hover changes only the border, never a shadow or glow.
+- **Cards:** `rounded-xl border border-border bg-card`, flat, no shadow.
+- **Home surfaces the differentiator:** the Dashboard shows a "N suggestions waiting for your review" banner when AI suggestions are pending, since reviewing them is the core loop.
+- **Lists grouped, not stacked:** Events groups by day (Today, Tomorrow, weekday) inside hairline-divided cards with a fixed time column; row actions appear on hover or focus on desktop and stay visible on touch.
+- **Heatmaps** use fixed small cells (weeks as columns), never `aspect-square` cells in a full-width grid, which balloons to 150px squares.
+- **Sign-in page:** a split layout whose inverted brand panel mirrors the landing page (hidden below `lg`).
+
 ## Elevation & Depth
 
 Flat by default. Cards and list rows in the app interior carry a 1px `border` and nothing else at rest - hierarchy comes from spacing, grouping, and border presence/absence, not drop shadows. Real elevation (shadow or glass) is reserved for things that are genuinely floating above the page: modals, popovers, dropdowns, the sidebar's mobile drawer scrim. This keeps a shadow meaning something when it does appear, instead of every card having one by default.

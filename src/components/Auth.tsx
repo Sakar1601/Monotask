@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { CheckSquare, UserRound, ArrowLeft } from 'lucide-react';
+import { CheckSquare, UserRound, ArrowLeft, Sparkles, RefreshCw, ShieldCheck } from 'lucide-react';
 import { MagneticButton } from '@/components/landing/MagneticButton';
 import { GrainOverlay } from '@/components/landing/GrainOverlay';
 
@@ -47,14 +47,38 @@ const Auth: React.FC<AuthProps> = ({ defaultMode = 'signin' }) => {
   };
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-background p-4 relative overflow-hidden">
+    <div className="grid min-h-[100dvh] bg-background lg:grid-cols-[1.05fr_1fr]">
+      <aside className="relative hidden flex-col justify-between overflow-hidden bg-foreground p-12 text-background lg:flex">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.1] [background-image:linear-gradient(hsl(var(--background))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--background))_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_80%_70%_at_30%_30%,black,transparent)]"
+        />
+        <div className="relative flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-background">
+            <CheckSquare className="h-5 w-5 text-foreground" />
+          </span>
+          <span className="font-grotesk text-xl font-semibold tracking-tight">Monotask</span>
+        </div>
+        <div className="relative max-w-md">
+          <h2 className="font-grotesk text-4xl font-semibold leading-[1.05] tracking-[-0.035em]">
+            Your inbox and calendars, turned into a plan.
+          </h2>
+          <ul className="mt-8 space-y-4 text-background/70">
+            <li className="flex items-start gap-3"><Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-background" strokeWidth={1.75} />AI drafts tasks from plain English and your messages, and you approve each one.</li>
+            <li className="flex items-start gap-3"><RefreshCw className="mt-0.5 h-5 w-5 shrink-0 text-background" strokeWidth={1.75} />Google and Microsoft stay in sync with your tasks, both ways.</li>
+            <li className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-background" strokeWidth={1.75} />Message scanning is opt-in, and Gmail access is read-only.</li>
+          </ul>
+        </div>
+        <p className="relative text-sm text-background/40">Free for personal use. No credit card.</p>
+      </aside>
+      <div className="relative flex items-center justify-center overflow-hidden p-4">
       <GrainOverlay />
       {/* Ambient mesh-gradient backdrop only, no interactive 3D: a login
           form's job is speed and clarity, not spectacle. Monochrome removed
           the amber tint this used to carry, so opacity is tuned up slightly
           from the original values to read as a deliberate, restrained glow
           rather than an accidental smudge once desaturated. */}
-      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-foreground/[0.09] rounded-full blur-3xl" />
         <div className="absolute bottom-[-10%] left-[-5%] w-96 h-96 bg-foreground/[0.05] rounded-full blur-3xl" />
         <div className="absolute top-[35%] left-[40%] w-72 h-72 bg-foreground/[0.04] rounded-full blur-3xl" />
@@ -62,13 +86,13 @@ const Auth: React.FC<AuthProps> = ({ defaultMode = 'signin' }) => {
 
       <button
         onClick={() => navigate('/')}
-        className="fixed top-5 left-5 sm:top-6 sm:left-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors z-10"
+        className="absolute top-5 left-5 sm:top-6 sm:left-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors z-10"
       >
         <ArrowLeft className="w-4 h-4" />
         Back
       </button>
 
-      <Card className="w-full max-w-sm border-border rounded-2xl shadow-xl relative">
+      <Card className="w-full max-w-sm border-border rounded-2xl relative">
         <CardHeader className="text-center pb-2">
           <div className="w-10 h-10 bg-foreground rounded-xl flex items-center justify-center mx-auto mb-3">
             <CheckSquare className="w-5 h-5 text-background" />
@@ -184,6 +208,7 @@ const Auth: React.FC<AuthProps> = ({ defaultMode = 'signin' }) => {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };

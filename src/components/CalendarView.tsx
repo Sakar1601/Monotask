@@ -449,7 +449,7 @@ const CalendarView: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="p-6">
+      <div>
         <div className="mb-6 flex items-center justify-between">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-8 w-56" />
@@ -464,7 +464,7 @@ const CalendarView: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
+    <div>
       <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-4">
           <h2 className="font-grotesk text-2xl font-bold text-foreground">

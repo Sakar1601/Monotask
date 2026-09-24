@@ -231,11 +231,11 @@ const ProgressView: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen space-y-6 bg-background p-6 transition-colors">
+    <div className="space-y-8">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           {/* TopBar already renders "Progress & Analytics" as the page h1. */}
-          <p className="text-base font-medium text-foreground">Track your productivity insights</p>
+          <p className="text-[15px] text-muted-foreground">Track your productivity insights</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleExportPDF} variant="outline">
@@ -285,13 +285,13 @@ const ProgressView: React.FC = () => {
             key={index}
             initial={reduceMotion ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            whileHover={reduceMotion ? undefined : { y: -3 }}
+            whileHover={reduceMotion ? undefined : { y: -2 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: reduceMotion ? 0 : index * 0.07 }}
           >
             <Card className="h-full transition-colors">
               <CardContent className="p-6">
-                <p className="mb-2 text-sm font-medium text-muted-foreground">{kpi.label}</p>
-                <p className="font-grotesk text-2xl font-semibold tabular-nums text-foreground">{kpi.value}</p>
+                <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">{kpi.label}</p>
+                <p className="mt-2 font-grotesk text-4xl font-semibold tracking-[-0.03em] tabular-nums text-foreground">{kpi.value}</p>
                 {kpi.percentage !== null && (
                   <div className="mt-3">
                     <AnimatedProgressBar value={kpi.percentage} reduceMotion={reduceMotion} />
@@ -314,7 +314,7 @@ const ProgressView: React.FC = () => {
         >
         <Card className="transition-colors">
           <CardContent className="p-6">
-            <h3 className="mb-4 text-lg font-semibold text-foreground">Weekly task completion</h3>
+            <h3 className="mb-4 font-grotesk text-lg font-semibold text-foreground">Weekly task completion</h3>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={weeklyData}>
                 <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} className="text-muted-foreground" />
@@ -335,7 +335,15 @@ const ProgressView: React.FC = () => {
         >
         <Card className="transition-colors">
           <CardContent className="p-6">
-            <h3 className="mb-4 text-lg font-semibold text-foreground">Tasks by category</h3>
+            <h3 className="mb-4 font-grotesk text-lg font-semibold text-foreground">Tasks by category</h3>
+            {categoryData.length === 0 ? (
+              <div className="flex h-[200px] flex-col items-center justify-center gap-1 text-center">
+                <p className="text-sm font-medium text-foreground">Nothing to split yet</p>
+                <p className="max-w-[16rem] text-sm text-muted-foreground">
+                  Complete tagged tasks and your split by category shows up here.
+                </p>
+              </div>
+            ) : (
             <div className="flex items-center justify-center">
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
@@ -354,6 +362,7 @@ const ProgressView: React.FC = () => {
                 </PieChart>
               </ResponsiveContainer>
             </div>
+            )}
             <div className="mt-4 space-y-2">
               {categoryData.map((item, index) => (
                 <div key={index} className="flex items-center justify-between">
@@ -376,8 +385,9 @@ const ProgressView: React.FC = () => {
       {/* Activity Heatmap */}
       <Card className="transition-colors">
         <CardContent className="p-6">
-          <h3 className="mb-4 text-lg font-semibold text-foreground">Activity heatmap</h3>
-          <div className="grid grid-cols-7 gap-1">
+          <h3 className="mb-4 font-grotesk text-lg font-semibold text-foreground">Activity heatmap</h3>
+          <div className="overflow-x-auto pb-1">
+          <div className="grid w-max grid-flow-col grid-rows-7 gap-1">
             {heatmapData.map((day, i) => {
               const intensity = Math.min(day.count / 5, 1); // Normalize to 0-1 scale
               const opacity = Math.max(0.12, intensity);
@@ -388,7 +398,7 @@ const ProgressView: React.FC = () => {
                   initial={reduceMotion ? false : { opacity: 0, scale: 0.6 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.15, delay: reduceMotion ? 0 : Math.min(i, 40) * 0.004 }}
-                  className="h-4 w-4 rounded-sm bg-muted transition-colors"
+                  className="h-4 w-4 rounded-[3px] bg-muted transition-colors"
                   style={{
                     backgroundColor: intensity > 0 ? `hsl(var(--primary) / ${opacity})` : undefined,
                   }}
@@ -396,6 +406,7 @@ const ProgressView: React.FC = () => {
                 />
               );
             })}
+          </div>
           </div>
           <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
             <span>Less</span>

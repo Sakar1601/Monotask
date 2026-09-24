@@ -8,6 +8,42 @@ import { Plus, Trash2, Calendar as CalendarIcon, MapPin, Link as LinkIcon, Penci
 import { useEvents, Event } from '@/hooks/useEvents';
 import EventModal from './EventModal';
 
+const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+const fmtTime = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+const formatTimeRange = (event: Event) => {
+  const start = new Date(event.start_time);
+  if (!event.end_time) return fmtTime(start);
+  const end = new Date(event.end_time);
+  return dayKey(start) === dayKey(end) ? `${fmtTime(start)} - ${fmtTime(end)}` : `${fmtTime(start)} - ${end.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
+};
+
+const groupEventsByDay = (events: Event[]) => {
+  const sorted = [...events].sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+  const groups: { key: string; label: string; sublabel: string; events: Event[] }[] = [];
+  for (const event of sorted) {
+    const d = new Date(event.start_time);
+    const key = dayKey(d);
+    let group = groups.find((g) => g.key === key);
+    if (!group) {
+      const long = d.toLocaleDateString([], { weekday: 'long' });
+      group = {
+        key,
+        label: key === dayKey(today) ? 'Today' : key === dayKey(tomorrow) ? 'Tomorrow' : long,
+        sublabel: d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }),
+        events: [],
+      };
+      groups.push(group);
+    }
+    group.events.push(event);
+  }
+  return groups;
+};
+
 const EventsView: React.FC = () => {
   const { events, isLoading, deleteEvent, isDeleting } = useEvents();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -27,7 +63,7 @@ const EventsView: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-4xl p-6">
+      <div className="">
         <div className="mb-8 flex items-center justify-between">
           <div className="space-y-2">
             <Skeleton className="h-8 w-40" />
@@ -45,11 +81,11 @@ const EventsView: React.FC = () => {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="">
       <div className="mb-8 flex items-center justify-between">
         <div>
           {/* TopBar already renders "Events" as the page h1. */}
-          <p className="text-base font-medium text-foreground">Meetings and calendar events, including ones synced from Google</p>
+          <p className="text-[15px] text-muted-foreground">Meetings and calendar events, including ones synced from Google</p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="mr-2 h-4 w-4" strokeWidth={1.75} />
@@ -58,106 +94,113 @@ const EventsView: React.FC = () => {
       </div>
 
       {events.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card py-12 text-center text-muted-foreground">
-          <CalendarIcon className="mx-auto mb-4 h-12 w-12 opacity-50" strokeWidth={1.5} />
-          <p>No events yet</p>
-          <p className="text-sm">Create one, or connect Google Calendar in Settings</p>
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-16 text-center">
+          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <CalendarIcon className="h-6 w-6" strokeWidth={1.75} />
+          </div>
+          <h3 className="font-grotesk text-base font-medium text-foreground">No events yet</h3>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Create one, or connect Google or Outlook in Settings to bring your calendar in.
+          </p>
         </div>
       ) : (
-        <motion.div
-          initial="hidden"
-          animate="show"
-          variants={{ hidden: {}, show: { transition: { staggerChildren: prefersReducedMotion ? 0 : 0.06 } } }}
-          className="space-y-3"
-        >
-          <AnimatePresence initial={false}>
-            {events.map((event) => (
-            <motion.div
-              key={event.id}
-              layout={!prefersReducedMotion}
-              variants={prefersReducedMotion ? { hidden: { opacity: 1 }, show: { opacity: 1 } } : { hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0 } }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -8, transition: { duration: 0.15 } }}
-              whileHover={prefersReducedMotion ? undefined : { y: -2 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="flex items-start justify-between rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50 hover:shadow-[0_16px_36px_-20px_hsl(var(--primary)/0.5)]"
-            >
-              <button type="button" className="flex-1 text-left" onClick={() => handleEdit(event)}>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium text-foreground">{event.title}</h3>
-                  {event.sync_connection_id && (
-                    <Badge variant="secondary" className="font-normal">
-                      {event.sync_provider === 'microsoft' ? 'Outlook' : 'Google'}
-                    </Badge>
-                  )}
-                  {event.sync_error && (
-                    <Badge variant="outline" className="border-destructive/30 bg-destructive/10 font-normal text-destructive" title={event.sync_error}>
-                      Sync failed
-                    </Badge>
-                  )}
-                </div>
-                <div className="mt-1 text-sm tabular-nums text-muted-foreground">
-                  {new Date(event.start_time).toLocaleString()}
-                  {event.end_time && ` – ${new Date(event.end_time).toLocaleString()}`}
-                </div>
-                {event.location && (
-                  <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-                    <MapPin className="h-3 w-3" strokeWidth={1.75} /> {event.location}
-                  </div>
-                )}
-                {event.meeting_url && (
-                  <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-                    <LinkIcon className="h-3 w-3" strokeWidth={1.75} /> {event.meeting_url}
-                  </div>
-                )}
-                {event.tags && (
-                  <span
-                    className="mt-2 inline-block rounded-full px-2 py-1 text-xs font-medium text-white"
-                    style={{ backgroundColor: event.tags.color }}
-                  >
-                    {event.tags.name}
-                  </span>
-                )}
-              </button>
-              <div className="ml-4 flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => handleEdit(event)}>
-                  <Pencil className="h-4 w-4" strokeWidth={1.75} />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={isDeleting}
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        <div className="space-y-8">
+          {groupEventsByDay(events).map((group) => (
+            <section key={group.key}>
+              <h2 className="mb-3 flex items-baseline gap-3 font-grotesk text-lg font-semibold text-foreground">
+                {group.label}
+                <span className="font-mono text-xs font-normal text-muted-foreground">{group.sublabel}</span>
+              </h2>
+              <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+                <AnimatePresence initial={false}>
+                  {group.events.map((event) => (
+                    <motion.div
+                      key={event.id}
+                      layout={!prefersReducedMotion}
+                      initial={prefersReducedMotion ? false : { opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, transition: { duration: 0.15 } }}
+                      className="group grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-1 p-4 transition-colors hover:bg-muted/40 sm:grid-cols-[11rem_1fr_auto] sm:gap-x-6"
                     >
-                      <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Event</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to delete "{event.title}"?
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>
-                        Cancel
-                      </AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => deleteEvent(event.id)}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Delete Event
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                      <div className="col-span-2 whitespace-nowrap pt-0.5 font-mono text-xs tabular-nums text-muted-foreground sm:col-span-1">
+                        {formatTimeRange(event)}
+                      </div>
+                      <button type="button" className="min-w-0 text-left" onClick={() => handleEdit(event)}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-medium text-foreground">{event.title}</h3>
+                          {event.sync_connection_id && (
+                            <Badge variant="secondary" className="font-normal">
+                              {event.sync_provider === 'microsoft' ? 'Outlook' : 'Google'}
+                            </Badge>
+                          )}
+                          {event.sync_error && (
+                            <Badge variant="outline" className="border-destructive/30 bg-destructive/10 font-normal text-destructive" title={event.sync_error}>
+                              Sync failed
+                            </Badge>
+                          )}
+                          {event.tags && (
+                            <span
+                              className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                              style={{ backgroundColor: event.tags.color }}
+                            >
+                              {event.tags.name}
+                            </span>
+                          )}
+                        </div>
+                        {event.location && (
+                          <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <MapPin className="h-3.5 w-3.5" strokeWidth={1.75} /> {event.location}
+                          </div>
+                        )}
+                        {event.meeting_url && (
+                          <div className="mt-1 flex items-center gap-1.5 truncate text-sm text-muted-foreground">
+                            <LinkIcon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+                            <span className="truncate">{event.meeting_url.replace(/^https?:\/\//, '')}</span>
+                          </div>
+                        )}
+                      </button>
+                      <div className="flex shrink-0 items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                        <Button variant="ghost" size="icon" aria-label={`Edit ${event.title}`} onClick={() => handleEdit(event)}>
+                          <Pencil className="h-4 w-4" strokeWidth={1.75} />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Delete ${event.title}`}
+                              disabled={isDeleting}
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Event</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete "{event.title}"?
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteEvent(event.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete Event
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
-            </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
+            </section>
+          ))}
+        </div>
       )}
 
       <EventModal

@@ -244,10 +244,10 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-3xl">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div>
         {/* TopBar already renders "Settings" as the page h1. */}
-        <p className="text-base font-medium text-foreground">Customize your Monotask experience</p>
+        <p className="text-[15px] text-muted-foreground">Customize your Monotask experience</p>
       </div>
 
       {/* Guest Account Alert */}
