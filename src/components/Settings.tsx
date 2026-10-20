@@ -17,6 +17,8 @@ import { toCsvRow } from '@/utils/csv';
 import { buildExportData, parseImportFile, MonotaskExport } from '@/utils/dataPortability';
 import UpgradeAccountModal from './UpgradeAccountModal';
 import IntegrationsSettings from './IntegrationsSettings';
+import InstallAppCard from './InstallAppCard';
+import NotificationsCard from './NotificationsCard';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const SECTION_TRANSITION = { type: 'spring' as const, stiffness: 100, damping: 20 };
@@ -317,6 +319,12 @@ const Settings: React.FC = () => {
         </CardContent>
       </Card>
       </SpotlightSection>
+
+      {/* Install as an app (renders nothing where unsupported) */}
+      <InstallAppCard />
+
+      {/* Push reminders */}
+      <NotificationsCard />
 
       {/* Theme Settings */}
       <SpotlightSection index={1} shouldReduceMotion={shouldReduceMotion}>

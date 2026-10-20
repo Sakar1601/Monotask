@@ -199,7 +199,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen = f
         initial={false}
         animate={{ x: isDesktop || isOpen ? 0 : -288 }}
         transition={shouldReduceMotion ? { duration: 0 } : SPRING_SNAPPY}
-        className="fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border flex flex-col h-screen shrink-0 md:static md:sticky md:top-0"
+        className="fixed inset-y-0 left-0 z-50 w-64 bg-card border-r border-border flex flex-col h-dvh shrink-0 md:static md:sticky md:top-0"
       >
         {/* Logo */}
         <div className="h-16 sm:h-24 px-5 border-b border-border shrink-0 flex items-center justify-between">
@@ -219,7 +219,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, isOpen = f
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto min-h-0 space-y-6">
+        <nav className="flex-1 px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] overflow-y-auto min-h-0 space-y-6">
           {menuGroups.map((group, gi) => (
             <div key={group.label}>
               <p className="px-3 mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">

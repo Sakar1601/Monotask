@@ -10,6 +10,7 @@ import AuthPage from "./pages/Auth";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import OAuthCallback from "./pages/OAuthCallback";
+import PwaUpdatePrompt from "@/components/PwaUpdatePrompt";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +21,7 @@ function App() {
         <AuthProvider>
           <SettingsProvider>
             <Toaster />
+            <PwaUpdatePrompt />
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Landing />} />
