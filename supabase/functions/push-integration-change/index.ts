@@ -125,7 +125,10 @@ Deno.serve(async (req: Request) => {
           .eq("sync_connection_id", body.connectionId)
           .eq(body.type === "event" ? "external_event_id" : "external_task_id", body.externalId);
       }
-      return new Response(JSON.stringify({ error: message }), {
+      // Provider error text can carry internal detail, so it stays in the
+      // logs and the row's sync_error; the caller gets a generic message.
+      console.error("push-integration-change provider error:", pushError);
+      return new Response(JSON.stringify({ error: "Sync with the provider failed" }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
