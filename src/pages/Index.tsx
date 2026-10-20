@@ -169,7 +169,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex w-full">
+    <div className="min-h-dvh bg-background flex w-full">
       <Sidebar
         currentView={currentView}
         onViewChange={changeView}
@@ -184,7 +184,7 @@ const Index = () => {
           onMenuClick={() => setIsSidebarOpen(true)}
           onSearchClick={() => setIsCommandPaletteOpen(true)}
         />
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]">
           <div className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8">
             {renderCurrentView()}
           </div>
