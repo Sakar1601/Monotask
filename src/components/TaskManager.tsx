@@ -549,11 +549,11 @@ const TaskManager: React.FC = () => {
 
       {/* Task Tabs */}
       <Tabs defaultValue="today" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="today">Today <span className="ml-1 tabular-nums">({todayTasks.length})</span></TabsTrigger>
-          <TabsTrigger value="upcoming">Upcoming <span className="ml-1 tabular-nums">({upcomingTasks.length})</span></TabsTrigger>
-          <TabsTrigger value="overdue">Overdue <span className="ml-1 tabular-nums">({overdueTasks.length})</span></TabsTrigger>
-          <TabsTrigger value="all">All <span className="ml-1 tabular-nums">({allTasks.length})</span></TabsTrigger>
+        <TabsList className="grid h-auto w-full grid-cols-4">
+          <TabsTrigger value="today" className="flex-col gap-0 px-1 sm:flex-row sm:gap-1">Today <span className="tabular-nums">({todayTasks.length})</span></TabsTrigger>
+          <TabsTrigger value="upcoming" className="flex-col gap-0 px-1 sm:flex-row sm:gap-1">Upcoming <span className="tabular-nums">({upcomingTasks.length})</span></TabsTrigger>
+          <TabsTrigger value="overdue" className="flex-col gap-0 px-1 sm:flex-row sm:gap-1">Overdue <span className="tabular-nums">({overdueTasks.length})</span></TabsTrigger>
+          <TabsTrigger value="all" className="flex-col gap-0 px-1 sm:flex-row sm:gap-1">All <span className="tabular-nums">({allTasks.length})</span></TabsTrigger>
         </TabsList>
 
         <TabsContent value="today" className="mt-6 space-y-3">

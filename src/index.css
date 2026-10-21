@@ -118,6 +118,30 @@
   body {
     @apply bg-background text-foreground font-sans;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    /* No rubber-band bounce or pull-to-refresh on the page itself; scroll
+       areas (e.g. the app's <main>) contain their own overscroll. */
+    overscroll-behavior-y: none;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Controls behave like app chrome, not page text: no double-tap zoom
+     delay, no accidental text selection or iOS long-press callout. Body
+     text, inputs and task titles stay selectable. */
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  nav a,
+  summary {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
 
   /* Ultra-minimal scrollbar styling */

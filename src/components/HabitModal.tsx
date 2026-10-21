@@ -89,7 +89,7 @@ const HabitModal: React.FC<HabitModalProps> = ({ isOpen, onClose, habit }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="mx-4 max-h-[90vh] max-w-lg overflow-y-auto pb-0 sm:mx-auto">
+      <DialogContent className="pb-0">
         <DialogHeader>
           <DialogTitle className="font-grotesk">
             {habit ? 'Edit habit' : 'Create habit'}
