@@ -1,19 +1,18 @@
 
 import React from 'react';
-import { Plus, Menu, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 
 interface TopBarProps {
   onQuickAdd: () => void;
   currentView: string;
-  onMenuClick?: () => void;
   onSearchClick?: () => void;
 }
 
 const SPRING_SNAPPY = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
-const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick, onSearchClick }) => {
+const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onSearchClick }) => {
   const shouldReduceMotion = useReducedMotion();
 
   const today = new Date();
@@ -39,15 +38,6 @@ const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick, o
   return (
     <div className="h-16 sm:h-24 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 [@media(prefers-reduced-transparency:reduce)]:bg-background border-b border-border flex items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 transition-colors">
       <div className="flex items-center gap-3 min-w-0">
-        <motion.button
-          onClick={onMenuClick}
-          whileTap={shouldReduceMotion ? undefined : { scale: 0.9 }}
-          transition={SPRING_SNAPPY}
-          className="md:hidden p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          aria-label="Open navigation menu"
-        >
-          <Menu className="w-5 h-5" strokeWidth={2} />
-        </motion.button>
         <div className="min-w-0">
           {/* This is the page's one real heading - the view components
               below used to render their own second <h1> repeating this
@@ -71,6 +61,17 @@ const TopBar: React.FC<TopBarProps> = ({ onQuickAdd, currentView, onMenuClick, o
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
+      {onSearchClick && (
+        <button
+          type="button"
+          onClick={onSearchClick}
+          aria-label="Search"
+          className="flex md:hidden h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Search className="h-5 w-5" strokeWidth={1.75} />
+        </button>
+      )}
+
       {onSearchClick && (
         <button
           type="button"

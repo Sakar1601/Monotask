@@ -31,6 +31,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={isDark ? "dark" : "light"}
       className="toaster group"
+      mobileOffset={{ bottom: "calc(env(safe-area-inset-bottom) + 5rem)", left: 16, right: 16 }}
       toastOptions={{
         classNames: {
           toast:
