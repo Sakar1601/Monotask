@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
+import MobileTabBar from "@/components/MobileTabBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import Dashboard from "@/components/Dashboard";
 import TaskManager from "@/components/TaskManager";
@@ -28,7 +29,6 @@ const Index = () => {
   const { pendingCount } = useAiSuggestions();
   const [searchParams, setSearchParams] = useSearchParams();
   const [currentView, setCurrentView] = useState('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [paletteUsed, setPaletteUsed] = useState(() => {
@@ -173,22 +173,24 @@ const Index = () => {
       <Sidebar
         currentView={currentView}
         onViewChange={changeView}
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
         badges={{ suggestions: pendingCount }}
       />
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         <TopBar
           onQuickAdd={handleQuickAdd}
           currentView={currentView}
-          onMenuClick={() => setIsSidebarOpen(true)}
           onSearchClick={() => setIsCommandPaletteOpen(true)}
         />
-        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]">
+        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain pr-[env(safe-area-inset-right)]">
           <div className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8">
             {renderCurrentView()}
           </div>
         </main>
+        <MobileTabBar
+          currentView={currentView}
+          onViewChange={changeView}
+          badges={{ suggestions: pendingCount }}
+        />
       </div>
       <CommandPalette
         open={isCommandPaletteOpen}
