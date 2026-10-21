@@ -102,7 +102,7 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="mx-4 max-h-[90vh] max-w-lg overflow-y-auto pb-0 sm:mx-auto">
+      <DialogContent className="pb-0">
         <motion.div
           initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.92 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -149,7 +149,7 @@ const EventModal: React.FC<EventModalProps> = ({ isOpen, onClose, event, prefill
             />
           </motion.div>
 
-          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants} className="grid grid-cols-2 gap-3">
+          <motion.div variants={prefersReducedMotion ? reducedFieldItemVariants : fieldItemVariants} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground">Start</label>
               <Input

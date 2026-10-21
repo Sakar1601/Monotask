@@ -221,7 +221,7 @@ const CalendarView: React.FC = () => {
     const days = [];
 
     for (let i = 0; i < firstDay; i++) {
-      days.push(<div key={`empty-${i}`} className="h-32 border border-border bg-muted/30"></div>);
+      days.push(<div key={`empty-${i}`} className="h-20 border border-border bg-muted/30 sm:h-32"></div>);
     }
 
     for (let day = 1; day <= daysInMonth; day++) {

@@ -81,7 +81,7 @@ const DayTasksModal: React.FC<DayTasksModalProps> = ({ isOpen, onClose, date, ta
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-w-2xl">
           <motion.div
             initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
