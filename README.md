@@ -2,6 +2,8 @@
 
 > A minimal, monochrome productivity app combining tasks, a calendar, habits, and analytics - with AI-assisted task capture and weekly summaries via Claude.
 
+[![Live demo](https://img.shields.io/badge/demo-live-brightgreen)](https://monotask.vercel.app) ![License](https://img.shields.io/badge/license-MIT-blue)
+
 ## Features
 
 - **Task Management** - due dates, priorities, tags, and recurring (daily/weekly/monthly) schedules that expand into real per-day occurrences
@@ -98,3 +100,11 @@ npm run lint
 
 CI (`.github/workflows/ci.yml`) runs typecheck, lint, unit tests, build, and the E2E test on
 every push/PR to `main`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#testing--cicd) for details.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for how to report a vulnerability. Never commit real credentials; use `.env.example` as the template for local configuration.
+
+## License
+
+Released under the [MIT License](LICENSE).
