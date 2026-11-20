@@ -1,4 +1,4 @@
-# Monotask
+<h1 align="center"><img src="docs/images/banner.svg" alt="Monotask: Minimal monochrome productivity app with Claude-powered capture."></h1>
 
 > A minimal, monochrome productivity app combining tasks, a calendar, habits, and analytics - with AI-assisted task capture and weekly summaries via Claude.
 
@@ -18,6 +18,17 @@
 - **Installable app (PWA)** - add it to your home screen from Settings; opens in its own window, with a bottom tab bar on phones and the sidebar on larger screens
 - **Push reminders** - tasks at their due time, events 15 minutes before they start, and habits at their preferred time, delivered even when the app is closed
 - **Dark/light theme**, and **guest access** with later account upgrade
+
+## Architecture
+
+```mermaid
+flowchart LR
+  U[PWA<br/>React + Vite] -->|queries, RLS| DB[(Supabase Postgres)]
+  U -->|parse-task, weekly-summary| F[Supabase Edge Functions]
+  F -->|key stays server-side| AI[Anthropic API<br/>Claude Haiku]
+  CR[pg_cron + send-reminders] --> PUSH[Web Push]
+  PUSH --> U
+```
 
 ## Tech stack
 
@@ -101,9 +112,17 @@ npm run lint
 CI (`.github/workflows/ci.yml`) runs typecheck, lint, unit tests, build, and the E2E test on
 every push/PR to `main`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#testing--cicd) for details.
 
+## Status
+
+Active. See `docs/ARCHITECTURE.md` for design details and `docs/security/THREAT_MODEL.md` for the threat model.
+
+## Contributing
+
+Contributions are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md) first.
+
 ## Security
 
-See [SECURITY.md](SECURITY.md) for how to report a vulnerability. Never commit real credentials; use `.env.example` as the template for local configuration.
+Report vulnerabilities privately; see [SECURITY.md](SECURITY.md).
 
 ## License
 
