@@ -109,8 +109,9 @@ npm run test:e2e  # end-to-end smoke tests (Playwright): desktop golden path + p
 npm run lint
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, unit tests, build, and the E2E test on
-every push/PR to `main`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#testing--cicd) for details.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, unit tests and the build (job `build`, the required
+check) on every push/PR to `main`. The Playwright E2E test runs as a separate job (`e2e`) because it needs the live
+Supabase backend. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#testing--cicd) for details.
 
 ## Status
 
