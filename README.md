@@ -4,6 +4,17 @@
 
 [![Live demo](https://img.shields.io/badge/demo-live-brightgreen)](https://monotask.vercel.app) ![License](https://img.shields.io/badge/license-MIT-blue)
 
+## Screenshots
+
+| | |
+| --- | --- |
+| ![Landing page](docs/screenshots/landing.png) | ![Dashboard](docs/screenshots/dashboard.png) |
+| *Landing page* | *Dashboard* |
+| ![Task manager](docs/screenshots/tasks.png) | ![Calendar](docs/screenshots/calendar.png) |
+| *Task manager* | *Calendar* |
+
+<p align="center"><img src="docs/screenshots/mobile.png" alt="Monotask on a phone" width="260"><br><em>Installable PWA on a phone</em></p>
+
 ## Features
 
 - **Task Management** - due dates, priorities, tags, and recurring (daily/weekly/monthly) schedules that expand into real per-day occurrences
