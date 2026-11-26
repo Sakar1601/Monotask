@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, newPasswordProblem } from '@/utils/passwordRules';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +29,11 @@ const Auth: React.FC<AuthProps> = ({ defaultMode = 'signin' }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const problem = isSignUp ? newPasswordProblem(password) : null;
+    if (problem) {
+      setError(problem);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -123,12 +129,12 @@ const Auth: React.FC<AuthProps> = ({ defaultMode = 'signin' }) => {
               <Input
                 id="password"
                 type="password"
-                placeholder="At least 6 characters"
+                placeholder={isSignUp ? PASSWORD_HINT : 'Your password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="w-full"
-                minLength={6}
+                minLength={isSignUp ? PASSWORD_MIN_LENGTH : undefined}
               />
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
@@ -139,7 +145,10 @@ const Auth: React.FC<AuthProps> = ({ defaultMode = 'signin' }) => {
           <div className="mt-4 text-center">
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError(null);
+              }}
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               {isSignUp
