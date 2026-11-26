@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { UserPlus } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, newPasswordProblem } from '@/utils/passwordRules';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,8 +32,9 @@ const UpgradeAccountModal = ({ open, onOpenChange }: UpgradeAccountModalProps) =
       return;
     }
 
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    const problem = newPasswordProblem(password);
+    if (problem) {
+      toast.error(problem);
       return;
     }
 
@@ -94,11 +96,11 @@ const UpgradeAccountModal = ({ open, onOpenChange }: UpgradeAccountModalProps) =
             <Input
               id="password"
               type="password"
-              placeholder="At least 6 characters"
+              placeholder={PASSWORD_HINT}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={PASSWORD_MIN_LENGTH}
             />
           </div>
           <div className="space-y-2">
@@ -110,7 +112,7 @@ const UpgradeAccountModal = ({ open, onOpenChange }: UpgradeAccountModalProps) =
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={PASSWORD_MIN_LENGTH}
             />
           </div>
           <div className="flex gap-2 pt-2">
