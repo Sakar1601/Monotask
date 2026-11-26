@@ -33,19 +33,8 @@
     <meta name="twitter:image" content="https://monotask.vercel.app/og-image.png" />
     <meta name="twitter:site" content="@monotask_app" />
 
-    <!-- Applies the dark class before first paint so dark-by-default doesn't
-         flash light for a frame while React mounts and useSettings/the
-         landing ThemeToggle catch up. Mirrors the same stored-key/fallback
-         logic those two use, so all three stay in agreement. -->
-    <script>
-      (function () {
-        try {
-          var stored = localStorage.getItem('monotask-landing-theme');
-          var dark = stored ? stored === 'dark' : true;
-          if (dark) document.documentElement.classList.add('dark');
-        } catch (e) {}
-      })();
-    </script>
+    <!-- Sets the theme before first paint. -->
+    <script src="/theme-init.js"></script>
   </head>
 
   <body>
